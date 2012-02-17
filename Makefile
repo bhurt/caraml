@@ -18,6 +18,8 @@
 # The ordering of MLFILES is actually important- wrong orders cause
 # link errors.
 MLFILES = \
+    Reader.ml \
+    Utils.ml \
     Info.ml \
     Error.ml \
     Type.ml \
@@ -29,6 +31,9 @@ MLFILES = \
     Alpha.ml \
     LambdaLift.ml \
     CallOpt.ml \
+    Context.ml \
+    Module.ml \
+    Function.ml \
     caraml.ml
 
 MLIFILES = $(MLFILES:.ml=.mli)
@@ -40,11 +45,10 @@ OFILES = $(MLFILES:.ml=.o)
 
 OCAMLFIND = ocamlfind
 
-PACKAGES =  camlp4,sexplib,sexplib.syntax
+PACKAGES =  camlp4,sexplib,sexplib.syntax,monad,llvm
 
-OCAML_IDIR = -I /usr/local/lib/ocaml
-SYNTAX = -syntax camlp4o
-OCAML_FLAGS = -cc g++ $(OCAML_IDIR) $(SYNTAX) -package $(PACKAGES)
+SYNTAX = -syntax camlp4o,pa_monad
+OCAML_FLAGS = $(SYNTAX) -package $(PACKAGES)
 
 OCAMLYACC = ocamlyacc
 OCAMLLEX = ocamllex
@@ -57,8 +61,8 @@ OCAMLOPT_LIBS =
 
 all: caraml
 
-caraml: $(CMOFILES)
-	$(OCAMLC) -linkpkg -o $@ $(CMOFILES)
+caraml: $(CMXFILES)
+	$(OCAMLOPT) -linkpkg -o $@ $(CMXFILES)
 
 $(CMIFILES): %.cmi: %.mli
 	$(OCAMLC) -c $<

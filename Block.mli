@@ -58,6 +58,8 @@ module type S = sig
     val offset : Llvm.llvalue -> int -> Llvm.llvalue monad;;
 
     val call : Llvm.llvalue -> (Llvm.llvalue list) -> Llvm.llvalue monad;;
+    val bitcast : Llvm.llvalue -> Llvm.lltype -> Llvm.llvalue monad;;
+    val zext : Llvm.llvalue -> Llvm.lltype -> Llvm.llvalue monad;;
 
 end;;
 

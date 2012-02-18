@@ -32,6 +32,10 @@ module type S = sig
     val dump_module : unit monad;;
 
     val get_module : Llvm.llmodule monad;;
+
+    val lookup_global : string -> Llvm.llvalue option monad;;
+    val define_global : string -> Llvm.llvalue -> Llvm.llvalue monad;;
+
 end;;
 
 

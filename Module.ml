@@ -17,7 +17,11 @@
 *)
 
 module X = struct
-    type t = Context.data * Llvm.llmodule;;
+    type t = {
+        context: Context.data;
+        mdl: Llvm.llmodule
+    };;
+
 end;;
 
 module R = Reader.Make(X);;
@@ -38,6 +42,9 @@ module type S = sig
     val dump_module : unit monad;;
     val get_module : Llvm.llmodule monad;;
 
+    val lookup_global : string -> Llvm.llvalue option monad;;
+    val define_global : string -> Llvm.llvalue -> Llvm.llvalue monad;;
+
 end;;
 
     
@@ -52,7 +59,7 @@ module Make(M: Monad) = struct
         let get_context =
             perform
                 mdl <-- M.get_module;
-                return (fst mdl)
+                return mdl.X.context;
         ;;
     end;;
 
@@ -61,13 +68,25 @@ module Make(M: Monad) = struct
     let dump_module =
         perform
             mdl <-- M.get_module;
-            return (Llvm.dump_module (snd mdl))
+            return (Llvm.dump_module mdl.X.mdl)
     ;;
 
     let get_module =
         perform
             mdl <-- M.get_module;
-            return (snd mdl)
+            return mdl.X.mdl
+    ;;
+
+    let lookup_global name =
+        perform
+            mdl <-- M.get_module;
+            return (Llvm.lookup_global name mdl.X.mdl)
+    ;;
+
+    let define_global name value =
+        perform
+            mdl <-- M.get_module;
+            return (Llvm.define_global name value mdl.X.mdl)
     ;;
 
 end;;
@@ -85,20 +104,20 @@ let with_module name (m: 'a t) : 'a Context.t =
             Context.bind Context.read
             (fun data ->
                 let mdl = Llvm.create_module ctx name in
-                let x = run (data, mdl) m in
+                let x = run { X.context = data; X.mdl = mdl } m in
                 Context.return x))
 ;;
 
 let get_module =
     perform
         mdl <-- read;
-        return (snd mdl)
+        return mdl.X.mdl
 ;;
 
 let define_function name fn_type =
     perform
         mdl <-- read;
-        return (Llvm.define_function name fn_type (snd mdl))
+        return (Llvm.define_function name fn_type mdl.X.mdl)
 ;;
 
 

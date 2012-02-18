@@ -34,6 +34,7 @@ MLFILES = \
     Context.ml \
     Module.ml \
     Function.ml \
+    Block.ml \
     caraml.ml
 
 MLIFILES = $(MLFILES:.ml=.mli)

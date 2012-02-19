@@ -30,6 +30,7 @@ MLFILES = \
     Annot.ml \
     Alpha.ml \
     LambdaLift.ml \
+    Simplify.ml \
     CallOpt.ml \
     Context.ml \
     Module.ml \

@@ -24,71 +24,71 @@ module InnerExpr = struct
         | Let of Info.t * Type.t * Common.Arg.t * t * t
         | LetTuple of Info.t * Type.t * Common.Arg.t list * t * t
         | If of Info.t * Type.t * t * t * t
-        | Tuple of Info.t * Type.t * t list
+        | Tuple of Info.t * Type.t * (Type.t * Common.Var.t) list
         | BinOp of Info.t * Type.t * t * Common.BinOp.t * t
         | UnOp of Info.t * Type.t * Common.UnOp.t * t
-        | InnerApply of Info.t * Type.t * t * (t list)
-        | InnerSafeApply of Info.t * Type.t * Common.Var.t * int * (t list)
-        | InnerCall of Info.t * Type.t * Common.Var.t * (t list)
+        | InnerApply of Info.t * Type.t * (Type.t * Common.Var.t)
+                            * ((Type.t * Common.Var.t) list)
+        | InnerSafeApply of Info.t * Type.t * (Type.t * Common.Var.t) * int
+                                * ((Type.t * Common.Var.t) list)
+        | InnerCall of Info.t * Type.t * (Type.t * Common.Var.t)
+                                    * ((Type.t * Common.Var.t) list)
         | Var of Info.t * Type.t * Common.Var.t
         | Const of Info.t * Type.t * Common.Const.t
         with sexp
     ;;
 
     let rec convert globals = function
-        | LambdaLift.Expr.Let(info, ty, arg, x, y) ->
+        | Simplify.Expr.Let(info, ty, arg, x, y) ->
             let x = convert globals x in
             let y = convert globals y in
             Let(info, ty, arg, x, y)
-        | LambdaLift.Expr.LetTuple(info, ty, arg, x, y) ->
+        | Simplify.Expr.LetTuple(info, ty, arg, x, y) ->
             let x = convert globals x in
             let y = convert globals y in
             LetTuple(info, ty, arg, x, y)
-        | LambdaLift.Expr.If(info, ty, x, y, z) ->
+        | Simplify.Expr.If(info, ty, x, y, z) ->
             let x = convert globals x in
             let y = convert globals y in
             let z = convert globals z in
             If(info, ty, x, y, z)
-        | LambdaLift.Expr.Tuple(info, ty, xs) ->
-            let xs = List.map (convert globals) xs in
-            Tuple(info, ty, xs)
-        | LambdaLift.Expr.BinOp(info, ty, x, op, y) ->
+        | Simplify.Expr.Tuple(info, ty, xs) -> Tuple(info, ty, xs)
+        | Simplify.Expr.BinOp(info, ty, x, op, y) ->
             let x = convert globals x in
             let y = convert globals y in
             BinOp(info, ty, x, op,y)
-        | LambdaLift.Expr.UnOp(info, ty, op, x) ->
+        | Simplify.Expr.UnOp(info, ty, op, x) ->
             let x = convert globals x in
             UnOp(info, ty, op, x)
-        | LambdaLift.Expr.Apply(info, ty, f, x) ->
+        | Simplify.Expr.Apply(info, ty, f, xs) ->
             begin
-                let f = convert globals f in
-                let x = convert globals x in
-                match f with
-                | Var(_, _, v) ->
-                    begin
-                        try
-                            let nargs = Common.Var.Map.find v globals in
-                            if (nargs == 1) then
-                                InnerCall(info, ty, v, [ x ])
-                            else
-                                InnerSafeApply(info, ty, v, nargs, [ x ])
-                        with
-                        | Not_found -> InnerApply(info, ty, f,  [ x ])
-                    end
-                | InnerSafeApply(_, _, v, nargs, xs) ->
-                    let xs = List.append xs [ x ] in
-                    if (nargs == (List.length xs)) then
-                        InnerCall(info, ty, v, xs)
+                try
+                    let nargs = Common.Var.Map.find (snd f) globals in
+                    let nparams = List.length xs in
+                    if (nparams == nargs) then
+                        InnerCall(info, ty, f, xs)
+                    else if (nparams > nargs) then
+                        let call_args = Utils.take nargs xs in
+                        let apply_args = Utils.drop nargs xs in
+                        let call_ty =
+                            List.fold_right
+                                (fun t1 t2 -> Type.Arrow(t1, t2))
+                                (List.map fst apply_args)
+                                ty
+                        in
+                        let name = Common.Var.generate () in
+                        Let(info, ty, (call_ty, Some name),
+                            InnerCall(info, call_ty, f, call_args),
+                            InnerApply(info, ty, (call_ty, name), apply_args))
                     else
-                        InnerSafeApply(info, ty, v, nargs, xs)
-                | InnerApply(_, _, f, xs) ->
-                    let xs = List.append xs [ x ] in
-                    InnerApply(info, ty, f, xs)
-                | _ -> InnerApply(info, ty, f, [ x ])
+                        InnerSafeApply(info, ty, f, nargs, xs)
+                with
+                | Not_found ->
+                    InnerApply(info, ty, f,  xs)
             end
-        | LambdaLift.Expr.Var(info, ty, v) ->
+        | Simplify.Expr.Var(info, ty, v) ->
             Var(info, ty, v)
-        | LambdaLift.Expr.Const(info, ty, c) ->
+        | Simplify.Expr.Const(info, ty, c) ->
             Const(info, ty, c)
     ;;
 
@@ -103,7 +103,8 @@ module TailExpr = struct
         | Let of Info.t * Type.t * Common.Arg.t * InnerExpr.t * t
         | LetTuple of Info.t * Type.t * Common.Arg.t list * InnerExpr.t * t
         | If of Info.t * Type.t * InnerExpr.t * t * t
-        | TailCall of Info.t * Type.t * Common.Var.t * (InnerExpr.t list)
+        | TailCall of Info.t * Type.t * (Type.t * Common.Var.t)
+                                        * ((Type.t * Common.Var.t) list)
         with sexp
     ;;
 
@@ -131,16 +132,16 @@ type t =
 ;;
 
 let convert globals = function
-    | LambdaLift.TopFun(info, ty, v, args, x) ->
+    | Simplify.TopFun(info, ty, v, args, x) ->
         let x = TailExpr.convert globals x in
         (Common.Var.Map.add v (List.length args) globals),
         TopFun(info, ty, v, args, x)
 
-    | LambdaLift.TopVar(info, ty, v, x) ->
+    | Simplify.TopVar(info, ty, v, x) ->
         let x = InnerExpr.convert globals x in
         globals, TopVar(info, ty, v, x)
 
-    | LambdaLift.TopExpr(info, ty, x) ->
+    | Simplify.TopExpr(info, ty, x) ->
         let x = InnerExpr.convert globals x in
         globals, TopExpr(info, ty, x)
 ;;

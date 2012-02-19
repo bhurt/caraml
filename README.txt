@@ -33,6 +33,11 @@ The general flow of the code is:
            |
            V
 
+       Simplify.ml      Replace all arguments with let-bound vars
+
+           |
+           V
+
        CallOpt.ml       Call site optimization/tail call detection
 
            |

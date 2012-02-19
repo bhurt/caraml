@@ -16,50 +16,35 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 *)
 
-module InnerExpr : sig
+module Expr : sig
+
     type t =
         | Let of Info.t * Type.t * Common.Arg.t * t * t
         | LetTuple of Info.t * Type.t * Common.Arg.t list * t * t
         | If of Info.t * Type.t * t * t * t
-        | Tuple of Info.t * Type.t * ((Type.t * Common.Var.t) list)
+        | Tuple of Info.t * Type.t * (Type.t * Common.Var.t) list
         | BinOp of Info.t * Type.t * t * Common.BinOp.t * t
         | UnOp of Info.t * Type.t * Common.UnOp.t * t
-        | InnerApply of Info.t * Type.t * (Type.t * Common.Var.t)
-                            * ((Type.t * Common.Var.t) list)
-        | InnerSafeApply of Info.t * Type.t * (Type.t * Common.Var.t) * int
-                                * ((Type.t * Common.Var.t) list)
-        | InnerCall of Info.t * Type.t * (Type.t * Common.Var.t)
-                                    * ((Type.t * Common.Var.t) list)
+        | Apply of Info.t * Type.t * (Type.t * Common.Var.t)
+                                        * ((Type.t * Common.Var.t) list)
         | Var of Info.t * Type.t * Common.Var.t
         | Const of Info.t * Type.t * Common.Const.t
     ;;
 
 end;;
 
-module TailExpr : sig
-
-    type t =
-        | Return of InnerExpr.t
-        | Let of Info.t * Type.t * Common.Arg.t * InnerExpr.t * t
-        | LetTuple of Info.t * Type.t * Common.Arg.t list * InnerExpr.t * t
-        | If of Info.t * Type.t * InnerExpr.t * t * t
-        | TailCall of Info.t * Type.t * (Type.t * Common.Var.t)
-                                        * ((Type.t * Common.Var.t) list)
-
-    ;;
-
-end;;
-
 type t =
-    | TopFun of Info.t * Type.t * Common.Var.t * Common.Arg.t list * TailExpr.t
-    | TopVar of Info.t * Type.t * Common.Var.t * InnerExpr.t
-    | TopExpr of Info.t * Type.t * InnerExpr.t
+    | TopFun of Info.t * Type.t * Common.Var.t * Common.Arg.t list * Expr.t
+    | TopVar of Info.t * Type.t * Common.Var.t * Expr.t
+    | TopExpr of Info.t * Type.t * Expr.t
 ;;
 
 val t_of_sexp__ : Sexplib.Sexp.t -> t;;
 val t_of_sexp : Sexplib.Sexp.t -> t;;
 val sexp_of_t : t -> Sexplib.Sexp.t;;
-val convert :
-    int Common.Var.Map.t -> Simplify.t -> (int Common.Var.Map.t * t)
-;;
+
+val convert : LambdaLift.t -> t;;
+
+
+
 

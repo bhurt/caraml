@@ -36,6 +36,7 @@ MLFILES = \
     Module.ml \
     Function.ml \
     Block.ml \
+    LlvmUtils.ml \
     caraml.ml
 
 MLIFILES = $(MLFILES:.ml=.mli)

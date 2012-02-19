@@ -70,8 +70,25 @@ module type S = sig
     val offset : Llvm.llvalue -> int -> Llvm.llvalue monad;;
 
     val call : Llvm.llvalue -> (Llvm.llvalue list) -> Llvm.llvalue monad;;
+
+    val int_to_bool : Llvm.llvalue -> Llvm.llvalue monad;;
+    val bool_to_int : Llvm.llvalue -> Llvm.llvalue monad;;
+
+    val box_unit : Llvm.llvalue -> Llvm.llvalue monad;;
+    val box_bool : Llvm.llvalue -> Llvm.llvalue monad;;
+    val box_int : Llvm.llvalue -> Llvm.llvalue monad;;
+    val box_float : Llvm.llvalue -> Llvm.llvalue monad;;
+    val box_ptr : Llvm.llvalue -> Llvm.llvalue monad;;
+
+    val unbox_unit : Llvm.llvalue -> Llvm.llvalue monad;;
+    val unbox_bool : Llvm.llvalue -> Llvm.llvalue monad;;
+    val unbox_int : Llvm.llvalue -> Llvm.llvalue monad;;
+    val unbox_float : Llvm.llvalue -> Llvm.llvalue monad;;
+    val unbox_ptr : Llvm.llvalue -> Llvm.llvalue monad;;
+
     val bitcast : Llvm.llvalue -> Llvm.lltype -> Llvm.llvalue monad;;
-    val zext : Llvm.llvalue -> Llvm.lltype -> Llvm.llvalue monad;;
+
+    val ptr_cmp_lt : Llvm.llvalue -> Llvm.llvalue -> Llvm.llvalue monad;;
 
 end;;
 
@@ -177,18 +194,83 @@ module Make(M: Monad) = struct
             return (Llvm.build_call f (Array.of_list xs) name b.X.builder)
     ;;
 
-    let bitcast v ty =
+    let int_to_bool x =
         perform
             b <-- M.get_block;
             name <-- alloc_reg_name;
-            return (Llvm.build_bitcast v ty name b.X.builder)
+            ty <-- unit_type;
+            return (Llvm.build_trunc x ty name b.X.builder)
     ;;
 
-    let zext v ty =
+    let bool_to_int x =
         perform
             b <-- M.get_block;
             name <-- alloc_reg_name;
-            return (Llvm.build_zext v ty name b.X.builder)
+            ty <-- word_type;
+            return (Llvm.build_zext x ty name b.X.builder)
+    ;;
+        
+    let box_unit x = return x;;
+
+    let box_bool x = bool_to_int x;;
+
+    let box_int x = return x;;
+
+    let box_float x =
+        perform
+            b <-- M.get_block;
+            name <-- alloc_reg_name;
+            ty <-- word_type;
+            return (Llvm.build_bitcast x ty name b.X.builder)
+    ;;
+
+    let box_ptr x =
+        perform
+            b <-- M.get_block;
+            name <-- alloc_reg_name;
+            ty <-- word_type;
+            return (Llvm.build_ptrtoint x ty name b.X.builder)
+    ;;
+
+    let unbox_unit x = return x;;
+
+    let unbox_bool x = int_to_bool x;;
+
+    let unbox_int x = return x;;
+
+    let unbox_float x =
+        perform
+            b <-- M.get_block;
+            name <-- alloc_reg_name;
+            ty <-- float_type;
+            return (Llvm.build_bitcast x ty name b.X.builder)
+    ;;
+
+    let unbox_ptr x =
+        perform
+            b <-- M.get_block;
+            name <-- alloc_reg_name;
+            ty <-- intptr_type;
+            return (Llvm.build_inttoptr x ty name b.X.builder)
+    ;;
+
+    let bitcast x ty =
+        perform
+            b <-- M.get_block;
+            name <-- alloc_reg_name;
+            return (Llvm.build_bitcast x ty name b.X.builder)
+    ;;
+
+    let ptr_cmp_lt x y =
+        perform
+            b <-- M.get_block;
+            xname <-- alloc_reg_name;
+            yname <-- alloc_reg_name;
+            name <-- alloc_reg_name;
+            ty <-- int_type;
+            let r1 = Llvm.build_ptrtoint x ty xname b.X.builder in
+            let r2 = Llvm.build_ptrtoint y ty yname b.X.builder in
+            return (Llvm.build_icmp Llvm.Icmp.Ult r1 r2 name b.X.builder)
     ;;
 
 end;;

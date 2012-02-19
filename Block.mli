@@ -58,8 +58,25 @@ module type S = sig
     val offset : Llvm.llvalue -> int -> Llvm.llvalue monad;;
 
     val call : Llvm.llvalue -> (Llvm.llvalue list) -> Llvm.llvalue monad;;
+
+    val int_to_bool : Llvm.llvalue -> Llvm.llvalue monad;;
+    val bool_to_int : Llvm.llvalue -> Llvm.llvalue monad;;
+
+    val box_unit : Llvm.llvalue -> Llvm.llvalue monad;;
+    val box_bool : Llvm.llvalue -> Llvm.llvalue monad;;
+    val box_int : Llvm.llvalue -> Llvm.llvalue monad;;
+    val box_float : Llvm.llvalue -> Llvm.llvalue monad;;
+    val box_ptr : Llvm.llvalue -> Llvm.llvalue monad;;
+
+    val unbox_unit : Llvm.llvalue -> Llvm.llvalue monad;;
+    val unbox_bool : Llvm.llvalue -> Llvm.llvalue monad;;
+    val unbox_int : Llvm.llvalue -> Llvm.llvalue monad;;
+    val unbox_float : Llvm.llvalue -> Llvm.llvalue monad;;
+    val unbox_ptr : Llvm.llvalue -> Llvm.llvalue monad;;
+
     val bitcast : Llvm.llvalue -> Llvm.lltype -> Llvm.llvalue monad;;
-    val zext : Llvm.llvalue -> Llvm.lltype -> Llvm.llvalue monad;;
+
+    val ptr_cmp_lt : Llvm.llvalue -> Llvm.llvalue -> Llvm.llvalue monad;;
 
 end;;
 

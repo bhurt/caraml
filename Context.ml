@@ -35,14 +35,19 @@ module type S = sig
 
     type 'a monad;;
 
+    val word_type : Llvm.lltype monad;;
+    val unit_type : Llvm.lltype monad;;
     val bool_type : Llvm.lltype monad;;
     val int_type : Llvm.lltype monad;;
     val float_type : Llvm.lltype monad;;
     val intptr_type : Llvm.lltype monad;;
+    val ptr_type : Llvm.lltype -> Llvm.lltype monad;;
 
     val int_const : int -> Llvm.llvalue monad;;
+    val int64_const : Int64.t -> Llvm.llvalue monad;;
     val float_const : float -> Llvm.llvalue monad;;
     val bool_const : bool -> Llvm.llvalue monad;;
+    val unit_const : unit -> Llvm.llvalue monad;;
 
     val get_context : Llvm.llcontext monad;;
 
@@ -55,6 +60,18 @@ module Make(M: Monad) = struct
     open M;;
 
     type 'a monad = 'a M.t;;
+
+    let word_type =
+        perform
+            ctx <-- M.get_context;
+            return (Llvm.i64_type ctx)
+    ;;
+
+    let unit_type =
+        perform
+            ctx <-- M.get_context;
+            return (Llvm.i64_type ctx)
+    ;;
 
     let bool_type =
         perform
@@ -80,6 +97,8 @@ module Make(M: Monad) = struct
             return (Llvm.pointer_type (Llvm.i64_type ctx))
     ;;
 
+    let ptr_type base = return (Llvm.pointer_type base);;
+
     let func_type arg_types ret_type =
         return (Llvm.function_type ret_type (Array.of_list arg_types))
     ;;
@@ -88,6 +107,12 @@ module Make(M: Monad) = struct
         perform
             t <-- int_type;
             return (Llvm.const_int t x)
+    ;;
+
+    let int64_const x =
+        perform
+            t <-- int_type;
+            return (Llvm.const_of_int64 t x true)
     ;;
 
     let float_const x =
@@ -100,6 +125,12 @@ module Make(M: Monad) = struct
         perform
             t <-- bool_type;
             return (Llvm.const_int t (if x then 1 else 0))
+    ;;
+
+    let unit_const () =
+        perform
+            t <-- unit_type;
+            return (Llvm.const_int t 0)
     ;;
 
     let get_context = M.get_context;;

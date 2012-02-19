@@ -27,14 +27,19 @@ end;;
 
 module type S = sig
     type 'a monad;;
+    val word_type : Llvm.lltype monad;;
+    val unit_type : Llvm.lltype monad;;
     val bool_type : Llvm.lltype monad;;
     val int_type : Llvm.lltype monad;;
     val float_type : Llvm.lltype monad;;
     val intptr_type : Llvm.lltype monad;;
+    val ptr_type : Llvm.lltype -> Llvm.lltype monad;;
 
     val int_const : int -> Llvm.llvalue monad;;
+    val int64_const : Int64.t -> Llvm.llvalue monad;;
     val float_const : float -> Llvm.llvalue monad;;
     val bool_const : bool -> Llvm.llvalue monad;;
+    val unit_const : unit -> Llvm.llvalue monad;;
 
     val get_context : Llvm.llcontext monad;;
 end;;

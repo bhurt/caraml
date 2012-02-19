@@ -33,7 +33,7 @@ module type S = sig
 
     val get_module : Llvm.llmodule monad;;
 
-    val lookup_global : string -> Llvm.llvalue option monad;;
+    val lookup_global : string -> Llvm.llvalue monad;;
     val define_global : string -> Llvm.llvalue -> Llvm.llvalue monad;;
 
 end;;

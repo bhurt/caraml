@@ -42,7 +42,7 @@ module type S = sig
     val dump_module : unit monad;;
     val get_module : Llvm.llmodule monad;;
 
-    val lookup_global : string -> Llvm.llvalue option monad;;
+    val lookup_global : string -> Llvm.llvalue monad;;
     val define_global : string -> Llvm.llvalue -> Llvm.llvalue monad;;
 
 end;;
@@ -80,7 +80,12 @@ module Make(M: Monad) = struct
     let lookup_global name =
         perform
             mdl <-- M.get_module;
-            return (Llvm.lookup_global name mdl.X.mdl)
+            match (Llvm.lookup_global name mdl.X.mdl) with
+            | None ->
+                failwith
+                    (Printf.sprintf "Unknown global named \"%s\""
+                                            name)
+            | Some v -> return v
     ;;
 
     let define_global name value =

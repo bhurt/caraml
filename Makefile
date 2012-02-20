@@ -18,6 +18,7 @@
 # The ordering of MLFILES is actually important- wrong orders cause
 # link errors.
 MLFILES = \
+    Config.ml \
     Reader.ml \
     Utils.ml \
     Info.ml \

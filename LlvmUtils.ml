@@ -49,22 +49,22 @@ let get_member ptr ty i =
         end
 ;;
 
-let set_member ptr ty i v =
+let set_member ~ptr ty i ~value =
     let bind = Block.bind in
     match ty with
     | Type.Base(Type.Boolean) ->
         begin
             perform
                 p <-- Block.offset ptr i;
-                v <-- Block.bool_to_int v;
-                Block.store ~ptr:p ~value:v
+                value <-- Block.bool_to_int value;
+                Block.store ~ptr:p ~value
         end
     | Type.Base(Type.Unit)
     | Type.Base(Type.Int) ->
         begin
             perform
                 p <-- Block.offset ptr i;
-                Block.store ~ptr:p ~value:v
+                Block.store ~ptr:p ~value
         end
     | Type.Arrow(_, _)
     | Type.Tuple(_) ->
@@ -74,12 +74,16 @@ let set_member ptr ty i v =
                 ty <-- Block.intptr_type;
                 ty <-- Block.ptr_type ty;
                 p' <-- Block.bitcast p ty;
-                Block.store ~ptr:p' ~value:v;
+                Block.store ~ptr:p' ~value;
         end
 ;;
 
 
-let make_tag_word tag tys =
+let make_tag_word ~tag ~len tys =
+    assert ((List.length tys) <= 32);
+    assert (len <= 32);
+    assert (len > 0);
+    assert ((List.length tys) > 0);
     let rec mask_bits b s = function
         | Type.Arrow(_, _) :: xs
         | Type.Tuple(_) :: xs
@@ -90,30 +94,32 @@ let make_tag_word tag tys =
     in
     let high = mask_bits 1 0 tys in
     let low = ((tag land 0xFFFFFF) lsl 8)
-                lor (((List.length tys) - 1) lsl 3)
+                lor ((len - 1) lsl 3)
                 lor 1
     in
-    let high = Int64.of_int high in
-    let high = Int64.shift_left high 32 in
     let low = Int64.of_int low in
-    Int64.logor high low
+    if (high != 0) then
+        let high = Int64.of_int high in
+        let high = Int64.shift_left high 32 in
+        Int64.logor high low
+    else
+        low
 ;;
 
 let heap_alloc start_block num_words =
+    assert ((num_words > 0) && (num_words <= 32));
     perform
         alloc_block <-- Function.new_block;
         _ <-- Block.in_block start_block
                 (Block.br alloc_block);
-        base <-- Function.lookup_global "caraml_base";
-        base_r <-- Block.in_block alloc_block
-                    (Block.load base);
-        limit <-- Function.lookup_global "caraml_limit";
-        limit_r <-- Block.in_block alloc_block
-                        (Block.load limit);
-        new_base_r <-- Block.in_block alloc_block
-                        (Block.offset base_r (~- (num_words + 1)));
+        base <-- Block.in_block alloc_block
+                    (Block.load_global "caraml_base");
+        limit <-- Block.in_block alloc_block
+                        (Block.load_global "caraml_limit");
+        new_base <-- Block.in_block alloc_block
+                        (Block.offset base (~- (num_words + 1)));
         test <-- Block.in_block alloc_block
-                        (Block.ptr_cmp_lt new_base_r limit_r);
+                        (Block.ptr_cmp_lt new_base limit);
         gc_block <-- Function.new_block;
         res_block <-- Function.new_block;
         _ <-- Block.in_block alloc_block
@@ -123,8 +129,8 @@ let heap_alloc start_block num_words =
         f <-- Function.lookup_global "caraml_gc";
         _ <-- Block.in_block gc_block (Block.call f []);
         _ <-- Block.in_block gc_block (Block.br alloc_block);
-        _ <-- Block.in_block res_block (Block.store base new_base_r);
-        r <-- Block.in_block res_block (Block.offset new_base_r 1);
+        _ <-- Block.in_block res_block (Block.store base new_base);
+        r <-- Block.in_block res_block (Block.offset new_base 1);
         return (r, res_block)
 ;;
 

@@ -17,9 +17,9 @@
 *)
 
 val get_member : Llvm.llvalue -> Type.t -> int -> Llvm.llvalue Block.t;;
-val set_member : Llvm.llvalue -> Type.t -> int -> Llvm.llvalue
+val set_member : ptr:Llvm.llvalue -> Type.t -> int -> value:Llvm.llvalue
                                                     -> Llvm.llvalue Block.t;;
-val make_tag_word : int -> Type.t list -> int64;;
+val make_tag_word : tag:int -> len:int -> Type.t list -> int64;;
 val heap_alloc : Llvm.llbasicblock -> int
                     -> (Llvm.llvalue * Llvm.llbasicblock) Function.t;;
 

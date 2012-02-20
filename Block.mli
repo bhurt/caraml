@@ -78,6 +78,8 @@ module type S = sig
 
     val ptr_cmp_lt : Llvm.llvalue -> Llvm.llvalue -> Llvm.llvalue monad;;
 
+    val load_global : string -> Llvm.llvalue monad;;
+
 end;;
 
 module Make(M: Monad) : S with type 'a monad = 'a M.t;;

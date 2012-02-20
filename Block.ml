@@ -90,6 +90,8 @@ module type S = sig
 
     val ptr_cmp_lt : Llvm.llvalue -> Llvm.llvalue -> Llvm.llvalue monad;;
 
+    val load_global : string -> Llvm.llvalue monad;;
+
 end;;
 
 module Make(M: Monad) = struct
@@ -271,6 +273,15 @@ module Make(M: Monad) = struct
             let r1 = Llvm.build_ptrtoint x ty xname b.X.builder in
             let r2 = Llvm.build_ptrtoint y ty yname b.X.builder in
             return (Llvm.build_icmp Llvm.Icmp.Ult r1 r2 name b.X.builder)
+    ;;
+
+    let load_global name =
+        perform
+            b <-- M.get_block;
+            reg <-- alloc_reg_name;
+            g <-- lookup_global name;
+            (* I don't know if I need to do this or not! *)
+            return (Llvm.build_load g reg b.X.builder)
     ;;
 
 end;;

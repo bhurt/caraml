@@ -67,12 +67,14 @@ module type S = sig
     val box_int : Llvm.llvalue -> Llvm.llvalue monad;;
     val box_float : Llvm.llvalue -> Llvm.llvalue monad;;
     val box_ptr : Llvm.llvalue -> Llvm.llvalue monad;;
+    val box : Type.t -> Llvm.llvalue -> Llvm.llvalue monad;;
 
     val unbox_unit : Llvm.llvalue -> Llvm.llvalue monad;;
     val unbox_bool : Llvm.llvalue -> Llvm.llvalue monad;;
     val unbox_int : Llvm.llvalue -> Llvm.llvalue monad;;
     val unbox_float : Llvm.llvalue -> Llvm.llvalue monad;;
     val unbox_ptr : Llvm.llvalue -> Llvm.llvalue monad;;
+    val unbox : Type.t -> Llvm.llvalue -> Llvm.llvalue monad;;
 
     val bitcast : Llvm.llvalue -> Llvm.lltype -> Llvm.llvalue monad;;
 

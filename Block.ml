@@ -79,12 +79,14 @@ module type S = sig
     val box_int : Llvm.llvalue -> Llvm.llvalue monad;;
     val box_float : Llvm.llvalue -> Llvm.llvalue monad;;
     val box_ptr : Llvm.llvalue -> Llvm.llvalue monad;;
+    val box : Type.t -> Llvm.llvalue -> Llvm.llvalue monad;;
 
     val unbox_unit : Llvm.llvalue -> Llvm.llvalue monad;;
     val unbox_bool : Llvm.llvalue -> Llvm.llvalue monad;;
     val unbox_int : Llvm.llvalue -> Llvm.llvalue monad;;
     val unbox_float : Llvm.llvalue -> Llvm.llvalue monad;;
     val unbox_ptr : Llvm.llvalue -> Llvm.llvalue monad;;
+    val unbox : Type.t -> Llvm.llvalue -> Llvm.llvalue monad;;
 
     val bitcast : Llvm.llvalue -> Llvm.lltype -> Llvm.llvalue monad;;
 
@@ -234,6 +236,14 @@ module Make(M: Monad) = struct
             return (Llvm.build_ptrtoint x ty name b.X.builder)
     ;;
 
+    let box = function
+        | Type.Base(Type.Unit) -> box_unit
+        | Type.Base(Type.Int) -> box_int
+        | Type.Base(Type.Boolean) -> box_bool
+        | Type.Arrow(_, _)
+        | Type.Tuple(_) -> box_ptr
+    ;;
+
     let unbox_unit x = return x;;
 
     let unbox_bool x = int_to_bool x;;
@@ -254,6 +264,14 @@ module Make(M: Monad) = struct
             name <-- alloc_reg_name;
             ty <-- intptr_type;
             return (Llvm.build_inttoptr x ty name b.X.builder)
+    ;;
+
+    let unbox = function
+        | Type.Base(Type.Unit) -> unbox_unit
+        | Type.Base(Type.Int) -> unbox_int
+        | Type.Base(Type.Boolean) -> unbox_bool
+        | Type.Arrow(_, _)
+        | Type.Tuple(_) -> unbox_ptr
     ;;
 
     let bitcast x ty =

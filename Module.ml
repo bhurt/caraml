@@ -44,10 +44,11 @@ module type S = sig
 
     val lookup_global : string -> Llvm.llvalue monad;;
     val define_global : string -> Llvm.llvalue -> Llvm.llvalue monad;;
+    val app_table_type : Llvm.lltype monad;;
 
 end;;
 
-    
+
 
 module Make(M: Monad) = struct
 
@@ -94,6 +95,14 @@ module Make(M: Monad) = struct
             return (Llvm.define_global name value mdl.X.mdl)
     ;;
 
+    let app_table_type =
+        perform
+            mdl <-- M.get_module;
+            match Llvm.type_by_name mdl.X.mdl "caraml_app_table_t" with
+            | Some t -> return t
+            | None -> assert false
+    ;;
+
 end;;
 
 module K = struct
@@ -103,14 +112,37 @@ end;;
 
 include Make(K);;
 
+let make_app_fn_type num_args =
+    perform
+        itype <-- int_type;
+        ptrtype <-- intptr_type;
+        func_type (ptrtype :: (Utils.repeat num_args itype)) itype
+;;
+
+let make_app_table_type =
+    perform
+        tys <-- seq (Utils.unfoldi (fun i -> make_app_fn_type (i + 1))
+                                                            Config.max_args);
+        struct_type tys
+;;
+
+let init_module m =
+    perform
+        ty <-- make_app_table_type;
+        mdl <-- read;
+        let _ = Llvm.define_type_name "caraml_app_table_t" ty mdl.X.mdl in
+        m
+;;
+
 let with_module name (m: 'a t) : 'a Context.t =
-    Context.bind Context.get_context
-        (fun ctx -> 
-            Context.bind Context.read
-            (fun data ->
-                let mdl = Llvm.create_module ctx name in
-                let x = run { X.context = data; X.mdl = mdl } m in
-                Context.return x))
+    let bind = Context.bind in
+    perform
+        ctx <-- Context.get_context;
+        data <-- Context.read;
+        let mdl = Llvm.create_module ctx name in
+        let m = init_module m in
+        let x = run { X.context = data; X.mdl = mdl } m in
+        Context.return x
 ;;
 
 let get_module =

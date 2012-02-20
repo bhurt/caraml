@@ -16,6 +16,8 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 *)
 
+let id x = x;;
+
 let take n lst =
     if (n < 0) then
         failwith "Utils.take: n < 0"
@@ -90,5 +92,49 @@ let unfold_right f init =
         | Some(init, x) -> loop (x :: acc) init
     in
     loop [] init
+;;
+
+let unfoldi f len =
+    let rec loop acc i =
+        if (i == 0) then
+            (f i) :: acc
+        else
+            loop ((f i) :: acc) (i - 1)
+    in
+    if (len < 0) then
+        failwith "unfoldi: negative length"
+    else if (len == 0) then
+        []
+    else
+        loop [] (len - 1)
+;;
+
+let range ?(start=0) ?(step=1) ~length =
+    let rec loop acc i n =
+        if (n == 0) then
+            List.rev acc
+        else
+            loop (i :: acc) (i + step) (n - 1)
+    in
+    if length < 0 then
+        failwith "range: negative length!"
+    else
+        loop [] start length
+;;
+
+let rec mapi ?(start=0) ?(step=1) f lst =
+    let rec loop ys i = function
+        | [] -> List.rev ys
+        | x :: xs ->
+            let y = f i x in
+            loop (y :: ys) (i + step) xs
+    in
+    loop [] start lst
+;;
+
+let rec freduce fs init =
+    match fs with
+    | [] -> init
+    | g :: gs -> freduce gs (g init)
 ;;
 

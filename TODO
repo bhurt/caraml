@@ -1,0 +1,68 @@
+In vague order:
+
+- Not sure about my global handling- do I need to do a load or not?
+    Test this! (and fix Block.load_global as necessary)
+
+- Add general recurion (let rec), functions only!
+
+- Add support for floats
+
+- Add support for strings
+
+- Add variant types and simple 1-level pattern matching (case)
+
+- Add complex pattern matching (match), get rid of let-tuple and case
+
+- Switch from let-style to defn-style for global definitions
+
+- Add type variables, polymorphic functions (half-mlton)
+
+- Add support for large (> 32 elems) tuples.
+
+- Add support for large (> 8 args) functions.
+    This is done by having a currying layer.  So we translate:
+        let f x1 x2 ... x8 x9 ... = ...
+    to:
+        let f$1 (x1, x2, ..., x8) x9 ... = ...
+        let f x1 x2 ... x8 = f$1 (x1, x2, ..., x8)
+    repeating as necessary if f$1 has more than 8 args (incl. the tuple)
+    Note that this can be done immediately after lambda lifting.
+
+- Add simple garbage collection (stop-the-world mark-sweep), shadow stack
+
+- Add support for large (> 28 args) functions.
+
+- Add modules
+
+- Add ml-style module-level functors
+
+- Add type classes
+
+- Add deferreds, remove non-monad mutation.
+
+- GC only between deferreds- remove shadow stack.
+
+- Add builtins (calling into native code)
+
+- Add operator definitions, precedence handling, get rid of builtin operators
+
+- Add pattern matching on operators
+
+- Add where clause?
+
+- Add rank-2 polymorphism
+
+- Better GC (stop-the-word generational copying)
+
+- Best GC (parallel & concurrent generational copying)
+
+- Add repl
+
+- Write stdlib
+
+- Add STM
+
+- Add lazy
+
+- GADTs?
+

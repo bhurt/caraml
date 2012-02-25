@@ -45,6 +45,8 @@ module type S = sig
     val func_type : (Llvm.lltype list) -> Llvm.lltype -> Llvm.lltype monad;;
     val struct_type : (Llvm.lltype list) -> Llvm.lltype monad;;
 
+    val llvm_of_type : Type.t -> Llvm.lltype monad;;
+
     val int_const : int -> Llvm.llvalue monad;;
     val int64_const : Int64.t -> Llvm.llvalue monad;;
     val float_const : float -> Llvm.llvalue monad;;
@@ -109,6 +111,14 @@ module Make(M: Monad) = struct
         perform
             ctx <-- M.get_context;
             return (Llvm.struct_type ctx (Array.of_list tys))
+    ;;
+
+    let llvm_of_type = function
+        | Type.Base(Type.Unit) -> unit_type
+        | Type.Base(Type.Int) -> int_type
+        | Type.Base(Type.Boolean) -> bool_type
+        | Type.Arrow(_, _)
+        | Type.Tuple(_) -> intptr_type
     ;;
 
     let int_const x =

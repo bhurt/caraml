@@ -37,6 +37,8 @@ module type S = sig
     val func_type : (Llvm.lltype list) -> Llvm.lltype -> Llvm.lltype monad;;
     val struct_type : (Llvm.lltype list) -> Llvm.lltype monad;;
 
+    val llvm_of_type : Type.t -> Llvm.lltype monad;;
+
     val int_const : int -> Llvm.llvalue monad;;
     val int64_const : Int64.t -> Llvm.llvalue monad;;
     val float_const : float -> Llvm.llvalue monad;;

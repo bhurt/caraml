@@ -18,13 +18,13 @@
 # The ordering of MLFILES is actually important- wrong orders cause
 # link errors.
 MLFILES = \
-    Config.ml \
     Reader.ml \
     Utils.ml \
     Info.ml \
     Error.ml \
     Type.ml \
     Common.ml \
+    Config.ml \
     AST.ml \
 	Parser.ml \
     Lexer.ml \

@@ -34,6 +34,8 @@ module InnerExpr : sig
         | Const of Info.t * Type.t * Common.Const.t
     ;;
 
+    val get_type : t -> Type.t;;
+
 end;;
 
 module TailExpr : sig
@@ -47,6 +49,8 @@ module TailExpr : sig
                                         * ((Type.t * Common.Var.t) list)
 
     ;;
+
+    val get_type : t -> Type.t;;
 
 end;;
 

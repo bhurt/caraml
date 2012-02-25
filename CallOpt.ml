@@ -92,6 +92,20 @@ module InnerExpr = struct
             Const(info, ty, c)
     ;;
 
+    let get_type = function
+        | Let(_, ty, _, _, _)
+        | LetTuple(_, ty, _, _, _)
+        | If(_, ty, _, _, _)
+        | Tuple(_, ty, _)
+        | BinOp(_, ty, _, _, _)
+        | UnOp(_, ty, _, _)
+        | InnerApply(_, ty, _, _)
+        | InnerSafeApply(_, ty, _, _, _)
+        | InnerCall(_, ty, _, _)
+        | Var(_, ty, _)
+        | Const(_, ty, _)
+        -> ty
+    ;;
 
 end;;
 
@@ -121,6 +135,15 @@ module TailExpr = struct
     ;;
 
     let convert globals x = return (InnerExpr.convert globals x);;
+
+    let get_type = function
+        | Return(x) -> InnerExpr.get_type x
+        | Let(_, ty, _, _, _)
+        | LetTuple(_, ty, _, _, _)
+        | If(_, ty, _, _, _)
+        | TailCall(_, ty, _, _)
+        -> ty
+    ;;
 
 end;;
 

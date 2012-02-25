@@ -82,6 +82,7 @@ module type S = sig
 
     val load_global : string -> Llvm.llvalue monad;;
 
+    val set_tail_call : ?is_tail:bool -> Llvm.llvalue -> unit monad;;
 end;;
 
 module Make(M: Monad) : S with type 'a monad = 'a M.t;;

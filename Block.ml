@@ -94,6 +94,8 @@ module type S = sig
 
     val load_global : string -> Llvm.llvalue monad;;
 
+    val set_tail_call : ?is_tail:bool -> Llvm.llvalue -> unit monad;;
+
 end;;
 
 module Make(M: Monad) = struct
@@ -300,6 +302,10 @@ module Make(M: Monad) = struct
             g <-- lookup_global name;
             (* I don't know if I need to do this or not! *)
             return (Llvm.build_load g reg b.X.builder)
+    ;;
+
+    let set_tail_call ?(is_tail=true) call_inst =
+        return (Llvm.set_tail_call is_tail call_inst)
     ;;
 
 end;;

@@ -45,6 +45,14 @@ module type S = sig
     val bool_const : bool -> Llvm.llvalue monad;;
     val unit_const : unit -> Llvm.llvalue monad;;
 
+    val int_init : Llvm.llvalue monad;;
+    val float_init : Llvm.llvalue monad;;
+    val bool_init : Llvm.llvalue monad;;
+    val unit_init : Llvm.llvalue monad;;
+    val ptr_init : Llvm.llvalue monad;;
+
+    val init_of_type : Type.t -> Llvm.llvalue monad;;
+
     val get_context : Llvm.llcontext monad;;
 end;;
 

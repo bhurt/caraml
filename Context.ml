@@ -53,6 +53,14 @@ module type S = sig
     val bool_const : bool -> Llvm.llvalue monad;;
     val unit_const : unit -> Llvm.llvalue monad;;
 
+    val int_init : Llvm.llvalue monad;;
+    val float_init : Llvm.llvalue monad;;
+    val bool_init : Llvm.llvalue monad;;
+    val unit_init : Llvm.llvalue monad;;
+    val ptr_init : Llvm.llvalue monad;;
+
+    val init_of_type : Type.t -> Llvm.llvalue monad;;
+
     val get_context : Llvm.llcontext monad;;
 
 end;;
@@ -149,6 +157,45 @@ module Make(M: Monad) = struct
         perform
             t <-- unit_type;
             return (Llvm.const_int t 0)
+    ;;
+
+    let int_init =
+        perform
+            t <-- int_type;
+            return (Llvm.const_int t 0)
+    ;;
+
+    let float_init =
+        perform
+            t <-- float_type;
+            return (Llvm.const_float t 0.0)
+    ;;
+
+    let bool_init =
+        perform
+            t <-- bool_type;
+            return (Llvm.const_int t 0)
+    ;;
+
+    let unit_init =
+        perform
+            t <-- unit_type;
+            return (Llvm.const_int t 0)
+    ;;
+
+    let ptr_init =
+        perform
+            int_t <-- int_type;
+            ptr_t <-- intptr_type;
+            return (Llvm.const_inttoptr (Llvm.const_int int_t 0) ptr_t)
+    ;;
+
+    let init_of_type = function
+        | Type.Base(Type.Int) -> int_init
+        | Type.Base(Type.Boolean) -> bool_init
+        | Type.Base(Type.Unit) -> unit_init
+        | Type.Arrow(_, _)
+        | Type.Tuple(_) -> ptr_init
     ;;
 
     let get_context = M.get_context;;

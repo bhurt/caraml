@@ -32,6 +32,8 @@ In vague order:
 
 - Add support for large (> 28 args) functions.
 
+- Add support for segmented (infinite) stacks.
+
 - Add modules
 
 - Add ml-style module-level functors
@@ -62,7 +64,40 @@ In vague order:
 
 - Add STM
 
-- Add lazy
+- Add lazy -- add let rec for lazy values.
 
 - GADTs?
+
+- Optimization: use aggregates for functions returning tuples?
+
+- Optimization: Specialization?
+
+- Optimization: Inlining/Loop conversion?
+
+- Optimization: Constant propagation/dead code elimination?
+                Do this before lambda lifting, so lambda expressions
+                can be constant-propagated.
+
+- Optimization: Pass the bound variables of a lifted lambda expression
+                in as a tuple, rather than 1 by 1 (limits argument 
+                number expansion)
+
+- Optimization: Combine multiple allocs.  Consider doing let-flattening,
+                so that:
+                    let x =
+                        let y = expr1 in
+                        expr2
+                    in
+                    expr3
+                becomes:
+                    let y = expr1 in
+                    let x = expr2 in
+                    let _ = kill y in
+                    expr3
+                or even:
+                    let y = expr1
+                    and x = expr2
+                    and _ = kill y
+                    in
+                    expr3
 

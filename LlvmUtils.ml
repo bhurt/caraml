@@ -106,6 +106,19 @@ let make_tag_word ~tag ~len tys =
         low
 ;;
 
+let set_tag_word_length ~len v =
+    assert (len > 0);
+    assert (len <= 32);
+    let mask = Int64.lognot (Int64.of_int 0xF8) in
+    let len = (len - 1) lsl 3 in
+    let bind = Block.bind in
+    perform
+        mask <-- Block.int64_const mask;
+        len <-- Block.int_const len;
+        v <-- Block.bool_and v mask;
+        Block.bool_or v len
+;;
+        
 let heap_alloc start_block num_words =
     assert ((num_words > 0) && (num_words <= 32));
     perform

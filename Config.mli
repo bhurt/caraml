@@ -4,3 +4,8 @@
  *)
 val max_args : int;;
 
+(* The name of a function to directly call it. *)
+val direct_name : Common.Var.t -> string;;
+
+(* The name of a function to apply it. *)
+val apply_name : Common.Var.t -> string;;

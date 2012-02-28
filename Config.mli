@@ -26,3 +26,11 @@ val direct_name : Common.Var.t -> string;;
 
 (* The name of a function to apply it. *)
 val apply_name : Common.Var.t -> string;;
+
+(* The name of the initialization function for a given variable *)
+val init_name : Common.Var.t -> string;;
+
+(* The name of the apply table for functions with n args and m
+ * already applied.
+ *)
+val apply_table_name: int -> int -> string;;

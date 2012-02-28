@@ -38,7 +38,8 @@ MLFILES = \
     Function.ml \
     Block.ml \
     LlvmUtils.ml \
-    caraml.ml
+    Assembly.ml \
+    caramlc.ml
 
 MLIFILES = $(MLFILES:.ml=.mli)
 
@@ -63,9 +64,9 @@ OCAMLDEP = $(OCAMLFIND) ocamldep $(OCAML_IDIR) $(SYNTAX) -package $(PACKAGES)
 OCAMLC_LIBS = 
 OCAMLOPT_LIBS = 
 
-all: caraml
+all: caramlc
 
-caraml: $(CMXFILES)
+caramlc: $(CMXFILES)
 	$(OCAMLOPT) -linkpkg -o $@ $(CMXFILES)
 
 $(CMIFILES): %.cmi: %.mli
@@ -104,5 +105,5 @@ clean:
 	rm -f Lexer.ml Parser.ml Parser.mli make.deps repl
 
 realclean: clean
-	rm -f Parser.output caraml
+	rm -f Parser.output caramlc
 

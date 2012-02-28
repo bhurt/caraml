@@ -150,8 +150,24 @@ let init_module m =
     perform
         ty <-- make_app_table_type;
         mdl <-- read;
-        let _ = Llvm.define_type_name "caraml_app_table_t" ty mdl.X.mdl in
-        m
+        intptr_t <-- intptr_type;
+        void_t <-- void_type;
+        gc_fn_t <-- func_type [] void_t;
+        begin
+            let _ = Llvm.define_type_name "caraml_app_table_t" ty mdl.X.mdl in
+            let _ = Llvm.declare_global intptr_t "caraml_base" mdl.X.mdl in
+            let _ = Llvm.declare_global intptr_t "caraml_limit" mdl.X.mdl in
+            let _ = Llvm.declare_function "caraml_gc" gc_fn_t mdl.X.mdl in
+            let _ = for i = 1 to Config.max_args do
+                for j = 0 to i-1 do
+                    let _ = Llvm.declare_global ty
+                        (Printf.sprintf "caraml_apply_table_%d_%d" i j)
+                        mdl.X.mdl
+                    in ()
+                done;
+            done in
+            m
+        end
 ;;
 
 let with_module name (m: 'a t) : 'a Context.t =

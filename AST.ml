@@ -38,3 +38,9 @@ type t =
     with sexp
 ;;
 
+type parse_result =
+    | Form of t
+    | EOF
+    | SyntaxError
+;;
+

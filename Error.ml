@@ -16,5 +16,20 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 *)
 
-exception Compiler_error of (int -> unit) * Info.t
+exception Compiler_error of (int -> unit) * Info.t;;
+
+let print_error msg loc =
+    Format.set_formatter_out_channel stderr;
+    Format.print_string "ERROR: ";
+    Format.open_box 4;
+    Info.pprint 4 loc;
+    Format.print_string ": ";
+    Format.close_box ();
+    Format.open_box 4;
+    msg 4;
+    Format.close_box ();
+    Format.print_newline ();
+    ()
+;;
+    
 

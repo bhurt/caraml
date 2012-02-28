@@ -18,3 +18,5 @@
 
 exception Compiler_error of (int -> unit) * Info.t;;
 
+val print_error : (int -> unit) -> Info.t -> unit;;
+

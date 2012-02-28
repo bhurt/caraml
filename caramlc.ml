@@ -49,9 +49,18 @@ let maybe_dump ocopt f x =
 ;;
 
 let rec parse_loop lexbuf dumps state =
+    Printf.printf "In parse_loop.\n%!";
     match Parser.top_level Lexer.token lexbuf with
-    | None -> state
-    | Some ast ->
+    | AST.EOF -> 
+        begin
+            Printf.printf "Exiting normally.\n%!";
+            state
+        end
+    | AST.SyntaxError ->
+        begin
+            raise Exit;
+        end;
+    | AST.Form ast ->
         let _ = maybe_dump dumps.ast_out AST.sexp_of_t ast in
         let (annot_map, annot) = Annot.convert state.annot_map ast in
         let _ = maybe_dump dumps.annot_out Annot.sexp_of_t annot in
@@ -143,9 +152,15 @@ let parse_file name =
                 lexbuf.Lexing.lex_curr_p <-
                     {   lexbuf.Lexing.lex_curr_p with
                         Lexing.pos_fname = name };
+                Printf.printf "Got here!\n%!";
                 let state = parse_loop lexbuf dumps state in
                 if !dump_llvm then
-                    Module.run state.mdl Module.dump_module;
+                    begin
+                        Printf.printf "Dumping module to stdout.\n%!";
+                        Module.run state.mdl Module.dump_module;
+                        flush stderr
+                    end;
+
                 close_in inchan;
                 ()
             end
@@ -189,6 +204,10 @@ let doc = "A native-mode compiler for the toy language caraml.";;
 try
     let _ = Arg.parse arg_spec parse_file doc in ()
 with
-    | Exit -> ()
+    | Exit ->
+        begin
+            Printf.printf "Threw Exit!\n%!"; ()
+        end
+    | a -> Printf.printf "Unexpected exception!\n%!"
 ;;
 

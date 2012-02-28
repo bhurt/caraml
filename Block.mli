@@ -30,6 +30,7 @@ module type S = sig
     include Function.S;;
 
     val ret : Llvm.llvalue -> Llvm.llvalue monad;;
+    val ret_void : Llvm.llvalue monad;;
     val br : Llvm.llbasicblock -> Llvm.llvalue monad;;
     val cond_br : test:Llvm.llvalue -> on_true:Llvm.llbasicblock
                     -> on_false:Llvm.llbasicblock -> Llvm.llvalue monad;;

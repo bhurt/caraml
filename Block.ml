@@ -42,6 +42,7 @@ module type S = sig
     include Function.S;;
 
     val ret : Llvm.llvalue -> Llvm.llvalue monad;;
+    val ret_void : Llvm.llvalue monad;;
     val br : Llvm.llbasicblock -> Llvm.llvalue monad;;
     val cond_br : test:Llvm.llvalue -> on_true:Llvm.llbasicblock
                     -> on_false:Llvm.llbasicblock -> Llvm.llvalue monad;;
@@ -119,6 +120,12 @@ module Make(M: Monad) = struct
         perform
             b <-- M.get_block;
             return (Llvm.build_ret v b.X.builder)
+    ;;
+
+    let ret_void =
+        perform
+            b <-- M.get_block;
+            return (Llvm.build_ret_void b.X.builder)
     ;;
 
     let br dest =

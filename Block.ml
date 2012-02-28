@@ -197,7 +197,8 @@ module Make(M: Monad) = struct
         perform
             b <-- M.get_block;
             name <-- alloc_reg_name;
-            return (Llvm.build_struct_gep ptr idx name b.X.builder)
+            i <-- int_const idx;
+            return (Llvm.build_in_bounds_gep ptr [| i |] name b.X.builder)
     ;;
 
     let call f xs =

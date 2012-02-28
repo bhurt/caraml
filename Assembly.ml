@@ -423,7 +423,7 @@ let make_init_fn n args x =
                                 fn_ptr <-- Block.offset p 1;
                                 fn_ptr_type <-- Block.ptr_type fn_type;
                                 fn_ptr <-- Block.bitcast fn_ptr fn_ptr_type;
-                                fn <-- Block.lookup_global
+                                fn <-- Block.lookup_function
                                             (Config.apply_name n);
                                 _ <-- Block.store ~ptr:fn_ptr ~value:fn;
                                 g <-- Block.lookup_global

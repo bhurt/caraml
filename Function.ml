@@ -73,7 +73,7 @@ module Make(M: Monad) = struct
             f <-- M.get_function;
             let r = f.X.reg_count in
             let _ = f.X.reg_count <- (r + 1) in
-            return (string_of_int r)
+            return (Printf.sprintf "r%d" r)
     ;;
 
     let alloc_block_name =

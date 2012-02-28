@@ -27,6 +27,7 @@ end;;
 
 module type S = sig
     type 'a monad;;
+    val void_type : Llvm.lltype monad;;
     val word_type : Llvm.lltype monad;;
     val unit_type : Llvm.lltype monad;;
     val bool_type : Llvm.lltype monad;;

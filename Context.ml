@@ -35,6 +35,7 @@ module type S = sig
 
     type 'a monad;;
 
+    val void_type : Llvm.lltype monad;;
     val word_type : Llvm.lltype monad;;
     val unit_type : Llvm.lltype monad;;
     val bool_type : Llvm.lltype monad;;
@@ -72,6 +73,12 @@ module Make(M: Monad) = struct
     open M;;
 
     type 'a monad = 'a M.t;;
+
+    let void_type=
+        perform
+            ctx <-- M.get_context;
+            return (Llvm.void_type ctx)
+    ;;
 
     let word_type =
         perform

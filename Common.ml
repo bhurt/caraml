@@ -25,7 +25,7 @@ module Var = struct
     let generate () =
         incr counter;
         let i = !counter in
-        Printf.sprintf "_$%d" i
+        Printf.sprintf "_.%d" i
     ;;
 
     module XMap = Map.Make(String);;
@@ -37,19 +37,19 @@ module Var = struct
             begin
                 let c = XMap.find s !seen_names in
                 seen_names := XMap.add s (c + 1) !seen_names;
-                Printf.sprintf "%s$%d" s (c + 1)
+                Printf.sprintf "%s.%d" s (c + 1)
             end
         with
         | Not_found ->
             begin
                 seen_names := XMap.add s 1 !seen_names;
-                Printf.sprintf "%s$1" s
+                Printf.sprintf "%s.1" s
             end
 
     let to_string s = s;;
 
     let orig_name s =
-        String.sub s 0 (String.index s '$')
+        String.sub s 0 (String.index s '.')
     ;;
 
     module Map = XMap;;

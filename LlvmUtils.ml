@@ -139,7 +139,7 @@ let heap_alloc start_block num_words =
                     (Block.cond_br ~test ~on_true:gc_block
                                                 ~on_false:res_block);
 
-        f <-- Function.lookup_global "caraml_gc";
+        f <-- Function.lookup_function "caraml_gc";
         _ <-- Block.in_block gc_block (Block.call f []);
         _ <-- Block.in_block gc_block (Block.br alloc_block);
         _ <-- Block.in_block res_block (Block.store base new_base);

@@ -66,24 +66,24 @@ let info () : Info.t =
 %token UNIT
 
 %start top_level
-%type <AST.t option> top_level
+%type <AST.parse_result> top_level
 
 %%
 
 top_level:
       LET var_or_discard EQUALS expr DOUBLE_SEMI {
-            Some(AST.Top(info (), $2, $4))
+            AST.Form(AST.Top(info (), $2, $4))
         }
     | LET VAR arglist EQUALS expr DOUBLE_SEMI {
             let i = info () in
-            Some(AST.Top(i, Some($2), AST.Expr.Lambda(i, List.rev $3, $5)))
+            AST.Form(AST.Top(i, Some($2), AST.Expr.Lambda(i, List.rev $3, $5)))
         }
     | error DOUBLE_SEMI {
             Printf.printf("Syntax Error.\n");
-            None
+            AST.SyntaxError
         }
-    | EOF { raise Exit }
-    | error EOF { raise Exit }
+    | EOF { AST.EOF }
+    | error EOF { Printf.printf("Syntax Error.\n"); AST.SyntaxError }
 ;
 
 var_or_discard:

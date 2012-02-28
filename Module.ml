@@ -43,7 +43,10 @@ module type S = sig
     val get_module : Llvm.llmodule monad;;
 
     val lookup_global : string -> Llvm.llvalue monad;;
+    val lookup_function : string -> Llvm.llvalue monad;;
     val define_global : string -> Llvm.llvalue -> Llvm.llvalue monad;;
+    val declare_function : string -> Llvm.lltype -> Llvm.llvalue monad;;
+
     val app_table_type : Llvm.lltype monad;;
 
 end;;
@@ -89,10 +92,27 @@ module Make(M: Monad) = struct
             | Some v -> return v
     ;;
 
+    let lookup_function name =
+        perform
+            mdl <-- M.get_module;
+            match (Llvm.lookup_function name mdl.X.mdl) with
+            | None ->
+                failwith
+                    (Printf.sprintf "Unknown function named \"%s\""
+                                            name)
+            | Some v -> return v
+    ;;
+
     let define_global name value =
         perform
             mdl <-- M.get_module;
             return (Llvm.define_global name value mdl.X.mdl)
+    ;;
+
+    let declare_function name typ =
+        perform
+            mdl <-- M.get_module;
+            return (Llvm.declare_function name typ mdl.X.mdl)
     ;;
 
     let app_table_type =
@@ -144,17 +164,4 @@ let with_module name (m: 'a t) : 'a Context.t =
         let x = run { X.context = data; X.mdl = mdl } m in
         Context.return x
 ;;
-
-let get_module =
-    perform
-        mdl <-- read;
-        return mdl.X.mdl
-;;
-
-let define_function name fn_type =
-    perform
-        mdl <-- read;
-        return (Llvm.define_function name fn_type mdl.X.mdl)
-;;
-
 

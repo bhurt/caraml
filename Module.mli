@@ -34,7 +34,9 @@ module type S = sig
     val get_module : Llvm.llmodule monad;;
 
     val lookup_global : string -> Llvm.llvalue monad;;
+    val lookup_function : string -> Llvm.llvalue monad;;
     val define_global : string -> Llvm.llvalue -> Llvm.llvalue monad;;
+    val declare_function : string -> Llvm.lltype -> Llvm.llvalue monad;;
 
     (* This is in Module, not Context, because we want to use a type
      * definition, so the generated LLVM is readable.

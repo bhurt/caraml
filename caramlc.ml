@@ -22,7 +22,7 @@ let dump_alpha = ref false;;
 let dump_lambda_lift = ref false;;
 let dump_simplify = ref false;;
 let dump_callopt = ref false;;
-let dump_llvm = ref true;;
+let dump_llvm = ref false;;
 
 type dumps_t = {
     ast_out : out_channel option;
@@ -138,8 +138,20 @@ let init_state name = {
     mdl = Context.with_context (Module.with_module name Module.read)
 };;
 
+let base_name name =
+    try
+        let i = String.rindex name '.' in
+        if (String.sub name i ((String.length name) - i)) = ".cml" then
+            String.sub name 0 i
+        else
+            name
+    with
+    | Not_found -> name
+;;
+
 let parse_file name =
-    let dumps = make_dumps name in
+    let base = base_name name in
+    let dumps = make_dumps base in
     begin
         try
             begin
@@ -160,8 +172,10 @@ let parse_file name =
                         Module.run state.mdl Module.dump_module;
                         flush stderr
                     end;
-
                 close_in inchan;
+                let _ = Module.run state.mdl
+                    (Module.write_bitcode_file (base ^ ".o"))
+                in
                 ()
             end
         with

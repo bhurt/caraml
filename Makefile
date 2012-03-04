@@ -52,7 +52,7 @@ OCAMLFIND = ocamlfind
 
 PACKAGES =  camlp4,sexplib,sexplib.syntax,monad,llvm,llvm.bitwriter
 
-SYNTAX = -syntax camlp4o,pa_monad
+SYNTAX = -syntax camlp4o,pa_monad,sexp
 OCAML_FLAGS = $(SYNTAX) -package $(PACKAGES)
 
 OCAMLYACC = ocamlyacc

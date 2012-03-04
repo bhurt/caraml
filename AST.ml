@@ -16,6 +16,8 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 *)
 
+open Sexplib.Conv;;
+
 module Expr = struct
     type t =
         | Lambda of Info.t * ((Type.t * (string option)) list) * t

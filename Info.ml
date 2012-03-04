@@ -16,6 +16,8 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 *)
 
+open Sexplib.Conv;;
+
 module Position = struct
 
     type t = {

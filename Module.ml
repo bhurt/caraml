@@ -48,6 +48,8 @@ module type S = sig
     val declare_function : string -> Llvm.lltype -> Llvm.llvalue monad;;
 
     val app_table_type : Llvm.lltype monad;;
+    val write_bitcode_file : string -> bool monad;;
+    val make_app_fn_type : int -> Llvm.lltype monad;;
 
 end;;
 
@@ -123,6 +125,19 @@ module Make(M: Monad) = struct
             | None -> assert false
     ;;
 
+    let write_bitcode_file fname =
+        perform
+            mdl <-- M.get_module;
+            return (Llvm_bitwriter.write_bitcode_file mdl.X.mdl fname)
+    ;;
+
+    let make_app_fn_type num_args =
+        perform
+            itype <-- int_type;
+            ptrtype <-- intptr_type;
+            func_type (ptrtype :: (Utils.repeat num_args itype)) itype
+    ;;
+
 end;;
 
 module K = struct
@@ -131,13 +146,6 @@ module K = struct
 end;;
 
 include Make(K);;
-
-let make_app_fn_type num_args =
-    perform
-        itype <-- int_type;
-        ptrtype <-- intptr_type;
-        func_type (ptrtype :: (Utils.repeat num_args itype)) itype
-;;
 
 let make_app_table_type =
     perform
@@ -148,11 +156,12 @@ let make_app_table_type =
 
 let init_module m =
     perform
+        void_t <-- void_type;
+        int_t <-- int_type;
+        gc_fn_t <-- func_type [ int_t ] void_t;
         ty <-- make_app_table_type;
         mdl <-- read;
         intptr_t <-- intptr_type;
-        void_t <-- void_type;
-        gc_fn_t <-- func_type [] void_t;
         begin
             let _ = Llvm.define_type_name "caraml_app_table_t" ty mdl.X.mdl in
             let _ = Llvm.declare_global intptr_t "caraml_base" mdl.X.mdl in

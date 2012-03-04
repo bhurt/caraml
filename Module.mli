@@ -43,12 +43,16 @@ module type S = sig
      *)
     val app_table_type : Llvm.lltype monad;;
 
+    val write_bitcode_file : string -> bool monad;;
+    val make_app_fn_type : int -> Llvm.lltype monad;;
 end;;
 
 
 module Make(M: Monad) :S with type 'a monad = 'a M.t;;
 
 include S with type 'a monad = 'a t;;
+
+val make_app_table_type : Llvm.lltype t;;
 
 val with_module : string -> 'a t -> 'a Context.t;;
 

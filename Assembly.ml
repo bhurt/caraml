@@ -184,8 +184,8 @@ module InnerExpr = struct
                             let bind = Block.bind in
                             perform
                                 f <-- get_name names (snd f);
-                                p0 <-- Block.offset p (-1);
-                                tword <-- Block.load p0;
+                                f_tag <-- Block.offset f (-1);
+                                tword <-- Block.load f_tag;
                                 tword <-- LlvmUtils.set_tag_word_length
                                             ~len:(2 + List.length xs)
                                             tword;
@@ -422,6 +422,7 @@ let make_init_fn n args x =
                                 _ <-- Block.store ~ptr ~value:table;
                                 fn_ptr <-- Block.offset p 1;
                                 fn_ptr_type <-- Block.ptr_type fn_type;
+                                fn_ptr_type <-- Block.ptr_type fn_ptr_type;
                                 fn_ptr <-- Block.bitcast fn_ptr fn_ptr_type;
                                 fn <-- Block.lookup_function
                                             (Config.apply_name n);

@@ -50,7 +50,7 @@ OFILES = $(MLFILES:.ml=.o)
 
 OCAMLFIND = ocamlfind
 
-PACKAGES =  camlp4,sexplib,sexplib.syntax,monad,llvm
+PACKAGES =  camlp4,sexplib,sexplib.syntax,monad,llvm,llvm.bitwriter
 
 SYNTAX = -syntax camlp4o,pa_monad
 OCAML_FLAGS = $(SYNTAX) -package $(PACKAGES)

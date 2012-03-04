@@ -140,7 +140,8 @@ let heap_alloc start_block num_words =
                                                 ~on_false:res_block);
 
         f <-- Function.lookup_function "caraml_gc";
-        _ <-- Block.in_block gc_block (Block.call f []);
+        nwords <-- Function.int_const num_words;
+        _ <-- Block.in_block gc_block (Block.call f [ nwords ]);
         _ <-- Block.in_block gc_block (Block.br alloc_block);
         _ <-- Block.in_block res_block (Block.store base new_base);
         r <-- Block.in_block res_block (Block.offset new_base 1);

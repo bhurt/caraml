@@ -120,7 +120,7 @@ let write_bitcode_file fname =
 ;;
 
 let make_app_fn_type num_args =
-    func_type (ptr_type :: (Utils.repeat num_args int_type)) int_type
+    func_type (intptr_type :: (Utils.repeat num_args int_type)) int_type
 ;;
 
 let make_app_table_type () =
@@ -133,18 +133,20 @@ let make_app_table_type () =
 
 let init_module () =
     begin
-        Llvm.define_type_name "caraml_app_table_t"
-                (make_app_table_type (mdl ()));
-        Llvm.declare_global intptr_type "caraml_base" (mdl ());
-        Llvm.declare_global intptr_type "caraml_limit" (mdl ());
-        Llvm.declare_function "caraml_gc"
-            (func_type [ int_type ] void_type)
-            (mdl ());
+        let m = mdl () in
+        let table_type = make_app_table_type () in
+        let _ = Llvm.define_type_name "caraml_app_table_t" table_type m in
+        let _ = Llvm.declare_global intptr_type "caraml_base" m in
+        let _ = Llvm.declare_global intptr_type "caraml_limit" m in
+        let _ = Llvm.declare_function "caraml_gc"
+                        (func_type [ int_type ] void_type)
+                        m
+        in
         for i = 1 to Config.max_args do
             for j = 0 to i-1 do
-                let _ = Llvm.declare_global (make_app_table_type ())
+                let _ = Llvm.declare_global table_type
                             (Printf.sprintf "caraml_apply_table_%d_%d" i j)
-                            (mdl ())
+                            m
                 in ()
             done;
         done;
@@ -159,7 +161,7 @@ let with_module name =
     ()
 ;;
 
-let fn_ref : Llvm.llvalue option ref;;
+let fn_ref : Llvm.llvalue option ref = ref None;;
 
 let fn () =
     match !fn_ref with
@@ -206,9 +208,9 @@ let make_block basic_block =
     }
 ;;
 
-let entry_block = make_block (Llvm.entry_block (fn ()));;
+let entry_block () = make_block (Llvm.entry_block (fn ()));;
 
-let new_block =
+let new_block () =
     make_block
         (Llvm.append_block ctx (alloc_block_name ()) (fn ()));;
 
@@ -218,7 +220,7 @@ let ret_void b = Llvm.build_ret_void b.builder;;
 
 let br b dest = Llvm.build_br dest b.builder;;
 
-let cond_br ~test ~on_true ~on_false =
+let cond_br b ~test ~on_true ~on_false =
     Llvm.build_cond_br test on_true on_false b.builder
 ;;
 
@@ -351,7 +353,7 @@ let ptr_cmp_lt b x y =
 ;;
 
 let load_global b name =
-    let g = lookup_global b name in
+    let g = lookup_global name in
     let reg = alloc_reg_name () in
     Llvm.build_load g reg b.builder
 ;;

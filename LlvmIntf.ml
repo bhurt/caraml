@@ -84,7 +84,7 @@ let mdl () =
     | Some m -> m
 ;;
 
-let dump_module = Llvm.dump_module (mdl ());;
+let dump_module () = Llvm.dump_module (mdl ());;
 
 let lookup_global name =
     match (Llvm.lookup_global name (mdl ())) with
@@ -181,6 +181,11 @@ let with_function name fn_type =
     ()
 ;;
 
+let end_function () =
+    fn_ref := None;
+    ()
+;;
+
 let alloc_reg_name () =
     incr reg_count;
     Printf.sprintf "r%d" !reg_count
@@ -193,7 +198,7 @@ let alloc_block_name () =
 
 let param n = Llvm.param (fn ()) n;;
 
-let params = Array.to_list (Llvm.params (fn ()));;
+let params () = Array.to_list (Llvm.params (fn ()));;
 
 type block_t = {
     blk : Llvm.llbasicblock;
@@ -218,10 +223,10 @@ let ret b v = Llvm.build_ret v b.builder;;
 
 let ret_void b = Llvm.build_ret_void b.builder;;
 
-let br b dest = Llvm.build_br dest b.builder;;
+let br b dest = Llvm.build_br dest.blk b.builder;;
 
 let cond_br b ~test ~on_true ~on_false =
-    Llvm.build_cond_br test on_true on_false b.builder
+    Llvm.build_cond_br test on_true.blk on_false.blk b.builder
 ;;
 
 let binop op b x y =

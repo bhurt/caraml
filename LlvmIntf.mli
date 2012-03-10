@@ -27,7 +27,7 @@ val init_of_type : Type.t -> Llvm.llvalue;;
 
 val mdl : unit -> Llvm.llmodule;;
 
-val dump_module : unit;;
+val dump_module : unit -> unit;;
 val lookup_global : string -> Llvm.llvalue;;
 val lookup_function : string -> Llvm.llvalue;;
 val define_global : string -> Llvm.llvalue -> Llvm.llvalue;;
@@ -39,14 +39,14 @@ val make_app_table_type : unit -> Llvm.lltype;;
 
 val with_module : string -> unit;;
 
-val fn : unit -> Llvm.llvalue;;
 val with_function : string -> Llvm.lltype -> unit;;
+val end_function : unit -> unit;;
 
 val alloc_reg_name : unit -> string;;
 val alloc_block_name : unit -> string;;
 
 val param : int -> Llvm.llvalue;;
-val params : Llvm.llvalue list;;
+val params : unit -> Llvm.llvalue list;;
 
 
 type block_t;;
@@ -56,9 +56,9 @@ val new_block : unit -> block_t;;
 
 val ret : block_t -> Llvm.llvalue -> Llvm.llvalue;;
 val ret_void : block_t -> Llvm.llvalue;;
-val br : block_t -> Llvm.llbasicblock -> Llvm.llvalue;;
-val cond_br : block_t -> test:Llvm.llvalue ->
-  on_true:Llvm.llbasicblock -> on_false:Llvm.llbasicblock -> Llvm.llvalue;;
+val br : block_t -> block_t -> Llvm.llvalue;;
+val cond_br : block_t -> test:Llvm.llvalue
+                    -> on_true:block_t -> on_false:block_t -> Llvm.llvalue;;
 
 val add : block_t -> Llvm.llvalue -> Llvm.llvalue -> Llvm.llvalue;;
 val sub : block_t -> Llvm.llvalue -> Llvm.llvalue -> Llvm.llvalue;;
@@ -95,9 +95,9 @@ val box_float : block_t -> Llvm.llvalue -> Llvm.llvalue;;
 val box_ptr : block_t -> Llvm.llvalue -> Llvm.llvalue;;
 val box : Type.t -> block_t -> Llvm.llvalue -> Llvm.llvalue;;
 
-val unbox_unit : 'a -> 'b -> 'b;;
+val unbox_unit : block_t -> Llvm.llvalue -> Llvm.llvalue;;
 val unbox_bool : block_t -> Llvm.llvalue -> Llvm.llvalue;;
-val unbox_int : 'a -> 'b -> 'b;;
+val unbox_int : block_t -> Llvm.llvalue -> Llvm.llvalue;;
 val unbox_float : block_t -> Llvm.llvalue -> Llvm.llvalue;;
 val unbox_ptr : block_t -> Llvm.llvalue -> Llvm.llvalue;;
 val unbox : Type.t -> block_t -> Llvm.llvalue -> Llvm.llvalue;;

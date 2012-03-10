@@ -16,66 +16,58 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 *)
 
-open Function;;
+let load block ?lltype ptr off =
+    let ptr =   if (off != 0) then
+                    LlvmIntf.offset block ptr off
+                else
+                    ptr
+    in
+    let ptr = match lltype with
+                | Some ty ->
+                    LlvmIntf.bitcast block ptr (LlvmIntf.ptr_type ty)
+                | None -> ptr
+    in
+    LlvmIntf.load block ptr
+;;
 
-let get_member ptr ty i =
-    let bind = Block.bind in
+let store block ?lltype ~ptr off ~value =
+    let ptr =   if (off != 0) then
+                    LlvmIntf.offset block ptr off
+                else
+                    ptr
+    in
+    let ptr = match lltype with
+                | Some ty ->
+                    LlvmIntf.bitcast block ptr (LlvmIntf.ptr_type ty)
+                | None -> ptr
+    in
+    LlvmIntf.store block ~ptr ~value
+;;
+
+let get_member b ptr ty i =
     match ty with
     | Type.Base(Type.Unit) ->
         (* We can elide the load altogether *)
-        Block.unit_const ()
+        LlvmIntf.unit_const ()
     | Type.Base(Type.Boolean) ->
-        begin
-            perform
-                p <-- Block.offset ptr i;
-                v <-- Block.load p;
-                Block.int_to_bool v
-        end
+        LlvmIntf.int_to_bool b (load b ptr i)
     | Type.Base(Type.Int) ->
-        begin
-            perform
-                p <-- Block.offset ptr i;
-                Block.load p
-        end
+        load b ptr i
     | Type.Arrow(_, _)
     | Type.Tuple(_) ->
-        begin
-            perform
-                p <-- Block.offset ptr i;
-                ty <-- Block.intptr_type;
-                ty <-- Block.ptr_type ty;
-                p' <-- Block.bitcast p ty;
-                Block.load p
-        end
+        load b ~lltype:LlvmIntf.intptr_type ptr i
 ;;
 
-let set_member ~ptr ty i ~value =
-    let bind = Block.bind in
+let set_member b ~ptr ty i ~value =
     match ty with
     | Type.Base(Type.Boolean) ->
-        begin
-            perform
-                p <-- Block.offset ptr i;
-                value <-- Block.bool_to_int value;
-                Block.store ~ptr:p ~value
-        end
+        store b ~ptr i ~value:(LlvmIntf.bool_to_int b value)
     | Type.Base(Type.Unit)
     | Type.Base(Type.Int) ->
-        begin
-            perform
-                p <-- Block.offset ptr i;
-                Block.store ~ptr:p ~value
-        end
+        store b ~ptr i ~value
     | Type.Arrow(_, _)
     | Type.Tuple(_) ->
-        begin
-            perform
-                p <-- Block.offset ptr i;
-                ty <-- Block.intptr_type;
-                ty <-- Block.ptr_type ty;
-                p' <-- Block.bitcast p ty;
-                Block.store ~ptr:p' ~value;
-        end
+        store b ~lltype:LlvmIntf.intptr_type ~ptr i ~value
 ;;
 
 
@@ -106,45 +98,87 @@ let make_tag_word ~tag ~len tys =
         low
 ;;
 
-let set_tag_word_length ~len v =
+let set_tag_word_length b ~len v =
     assert (len > 0);
     assert (len <= 32);
     let mask = Int64.lognot (Int64.of_int 0xF8) in
+    let mask = LlvmIntf.int64_const mask in
     let len = (len - 1) lsl 3 in
-    let bind = Block.bind in
-    perform
-        mask <-- Block.int64_const mask;
-        len <-- Block.int_const len;
-        v <-- Block.bool_and v mask;
-        Block.bool_or v len
+    let len = LlvmIntf.int_const len in
+    let v = LlvmIntf.bool_and b v mask in
+    LlvmIntf.bool_or b v len
 ;;
-        
+
 let heap_alloc start_block num_words =
     assert ((num_words > 0) && (num_words <= 32));
-    perform
-        alloc_block <-- Function.new_block;
-        _ <-- Block.in_block start_block
-                (Block.br alloc_block);
-        base <-- Block.in_block alloc_block
-                    (Block.load_global "caraml_base");
-        limit <-- Block.in_block alloc_block
-                        (Block.load_global "caraml_limit");
-        new_base <-- Block.in_block alloc_block
-                        (Block.offset base (~- (num_words + 1)));
-        test <-- Block.in_block alloc_block
-                        (Block.ptr_cmp_lt new_base limit);
-        gc_block <-- Function.new_block;
-        res_block <-- Function.new_block;
-        _ <-- Block.in_block alloc_block
-                    (Block.cond_br ~test ~on_true:gc_block
-                                                ~on_false:res_block);
 
-        f <-- Function.lookup_function "caraml_gc";
-        nwords <-- Function.int_const num_words;
-        _ <-- Block.in_block gc_block (Block.call f [ nwords ]);
-        _ <-- Block.in_block gc_block (Block.br alloc_block);
-        _ <-- Block.in_block res_block (Block.store base new_base);
-        r <-- Block.in_block res_block (Block.offset new_base 1);
-        return (r, res_block)
+    let alloc_block = LlvmIntf.new_block () in
+    let gc_block = LlvmIntf.new_block () in
+    let res_block = LlvmIntf.new_block () in
+
+    (* start_block: *)
+    let _ = LlvmIntf.br start_block alloc_block in
+
+    (* alloc_block: *)
+    let base = LlvmIntf.load_global alloc_block "caraml_base" in
+    let limit = LlvmIntf.load_global alloc_block "caraml_limit" in
+    let new_base = LlvmIntf.offset alloc_block base (~- (num_words + 1)) in
+    let test = LlvmIntf.ptr_cmp_lt alloc_block new_base limit in
+    let _ = LlvmIntf.cond_br ~test ~on_true:gc_block ~on_false:res_block in
+
+    (* gc_block: *)
+    let f = LlvmIntf.lookup_function "caraml_gc" in
+    let nwords = LlvmIntf.int_const (num_words + 1) in
+    let _ = LlvmIntf.call gc_block f [ nwords ] in
+    let _ = LlvmIntf.br gc_block alloc_block in
+
+    (* res_block: *)
+    let _ = LlvmIntf.store res_block ~ptr:base ~value:new_base in
+    let r = LlvmIntf.offset res_block new_base 1 in
+    (r, res_block)
 ;;
+
+
+type get_val_t = LlvmIntf.block_t -> (Llvm.llvalue * LlvmIntf.block_t);;
+
+let alloc_closure start_block nargs ~tag_word ~fn_ptr applied_vals =
+    (* Allocate the closure *)
+    let (p, b) = heap_alloc start_block
+                        (2 + (List.length applied_vals))
+    in
+
+    (* Store the tag word *)
+    let (t_word, b) = tag_word b in
+    let _ = store b ~ptr:p (-1) ~value:t_word in
+
+    (* Set the apply function table pointer *)
+    let table = LlvmIntf.lookup_global
+                    (Config.apply_table_name nargs
+                        (List.length applied_vals))
+    in
+    let _ = store b
+                ~lltype:(LlvmIntf.ptr_type
+                            (LlvmIntf.app_table_type ()))
+                ~ptr:p 0 ~value:table
+    in
+
+    (* Set the function pointer *)
+    let (fn_ptr, b) = fn_ptr b in
+    let _ = store b ~ptr:p ~value:fn_ptr in
+
+    (* Save the applied values *)
+    let b =
+        Utils.fold_lefti ~start:2
+            (fun i b f ->
+                let (v, b) = f b in
+                let _ = store b ~ptr:p i ~value:v in
+                b)
+            b
+            applied_vals
+    in
+
+    (p, b)
+;;
+
+
 

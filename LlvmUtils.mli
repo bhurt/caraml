@@ -16,11 +16,26 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 *)
 
-val get_member : Llvm.llvalue -> Type.t -> int -> Llvm.llvalue Block.t;;
-val set_member : ptr:Llvm.llvalue -> Type.t -> int -> value:Llvm.llvalue
-                                                    -> Llvm.llvalue Block.t;;
-val make_tag_word : tag:int -> len:int -> Type.t list -> int64;;
-val set_tag_word_length : len:int -> Llvm.llvalue -> Llvm.llvalue Block.t;;
-val heap_alloc : Llvm.llbasicblock -> int
-                    -> (Llvm.llvalue * Llvm.llbasicblock) Function.t;;
+val load : LlvmIntf.block_t -> ?lltype:Llvm.lltype -> Llvm.llvalue -> int
+            -> Llvm.llvalue;;
+val store: LlvmIntf.block_t-> ?lltype:Llvm.lltype -> ptr:Llvm.llvalue -> int
+                -> value:Llvm.llvalue -> Llvm.llvalue;;
+val get_member : LlvmIntf.block_t -> Llvm.llvalue -> Type.t -> int
+                    -> Llvm.llvalue;;
+val set_member : LlvmIntf.block_t -> ptr:Llvm.llvalue -> Type.t -> int
+                    -> value:Llvm.llvalue -> Llvm.llvalue;;
 
+val make_tag_word : tag:int -> len:int -> Type.t list -> int64;;
+val set_tag_word_length : LlvmIntf.block_t -> len:int -> Llvm.llvalue
+                                -> Llvm.llvalue;;
+val heap_alloc : LlvmIntf.block_t -> int -> (Llvm.llvalue * LlvmIntf.block_t);; 
+
+type get_val_t = LlvmIntf.block_t -> (Llvm.llvalue * LlvmIntf.block_t);;
+
+val alloc_closure : LlvmIntf.block_t
+                        -> int
+                        -> tag_word:get_val_t
+                        -> fn_ptr:get_val_t
+                        -> get_val_t list
+                        -> (Llvm.llvalue * LlvmIntf.block_t)
+;;

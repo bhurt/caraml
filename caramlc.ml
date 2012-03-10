@@ -39,7 +39,6 @@ type state_t = {
     lambda_set : Common.Var.Set.t;
     callopt_map : int Common.Var.Map.t;
     init_fns : string list;
-    mdl : Module.data;
 };;
 
 let maybe_dump ocopt f x =
@@ -49,17 +48,9 @@ let maybe_dump ocopt f x =
 ;;
 
 let rec parse_loop lexbuf dumps state =
-    Printf.printf "In parse_loop.\n%!";
     match Parser.top_level Lexer.token lexbuf with
-    | AST.EOF -> 
-        begin
-            Printf.printf "Exiting normally.\n%!";
-            state
-        end
-    | AST.SyntaxError ->
-        begin
-            raise Exit;
-        end;
+    | AST.EOF -> state
+    | AST.SyntaxError -> raise Exit;
     | AST.Form ast ->
         let _ = maybe_dump dumps.ast_out AST.sexp_of_t ast in
         let (annot_map, annot) = Annot.convert state.annot_map ast in
@@ -79,16 +70,13 @@ let rec parse_loop lexbuf dumps state =
                         CallOpt.convert state.callopt_map simplify
                     in
                     maybe_dump dumps.callopt_out CallOpt.sexp_of_t callopt;
-                    let init_fn =
-                        Module.run state.mdl (Assembly.assemble callopt)
-                    in
+                    let init_fn = Assembly.assemble callopt in
                     {
                         annot_map = annot_map;
                         alpha_map = alpha_map;
                         lambda_set = lambda_set;
                         callopt_map = callopt_map;
                         init_fns = init_fn :: state.init_fns;
-                        mdl = state.mdl;
                     })
                 state
                 lambdas
@@ -129,14 +117,15 @@ let close_dumps dumps =
     ()
 ;;
 
-let init_state name = {
-    annot_map = Annot.StringMap.empty;
-    alpha_map = Alpha.StringMap.empty;
-    lambda_set = Common.Var.Set.empty;
-    callopt_map = Common.Var.Map.empty;
-    init_fns = [];
-    mdl = Context.with_context (Module.with_module name Module.read)
-};;
+let init_state name = 
+    LlvmIntf.with_module name;
+    {
+        annot_map = Annot.StringMap.empty;
+        alpha_map = Alpha.StringMap.empty;
+        lambda_set = Common.Var.Set.empty;
+        callopt_map = Common.Var.Map.empty;
+        init_fns = [];
+    };;
 
 let base_name name =
     try
@@ -164,18 +153,14 @@ let parse_file name =
                 lexbuf.Lexing.lex_curr_p <-
                     {   lexbuf.Lexing.lex_curr_p with
                         Lexing.pos_fname = name };
-                Printf.printf "Got here!\n%!";
-                let state = parse_loop lexbuf dumps state in
+                let _ = parse_loop lexbuf dumps state in
                 if !dump_llvm then
                     begin
-                        Printf.printf "Dumping module to stdout.\n%!";
-                        Module.run state.mdl Module.dump_module;
+                        LlvmIntf.dump_module ();
                         flush stderr
                     end;
                 close_in inchan;
-                let _ = Module.run state.mdl
-                    (Module.write_bitcode_file (base ^ ".o"))
-                in
+                let _ = LlvmIntf.write_bitcode_file (base ^ ".o") in
                 ()
             end
         with
@@ -218,10 +203,7 @@ let doc = "A native-mode compiler for the toy language caraml.";;
 try
     let _ = Arg.parse arg_spec parse_file doc in ()
 with
-    | Exit ->
-        begin
-            Printf.printf "Threw Exit!\n%!"; ()
-        end
+    | Exit -> ()
     | a -> Printf.printf "Unexpected exception!\n%!"
 ;;
 

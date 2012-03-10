@@ -26,5 +26,7 @@ val unfold_right : ('a -> ('a * 'b) option) -> 'a -> 'b list;;
 val unfoldi : (int -> 'a) -> int -> 'a list;;
 val range : ?start:int -> ?step:int -> length:int -> int list;;
 val mapi : ?start:int -> ?step:int -> (int -> 'a -> 'b) -> 'a list -> 'b list;;
+val fold_lefti : ?start:int -> ?step:int
+                    -> (int -> 'a -> 'b -> 'a) -> 'a -> 'b list -> 'a;;
 val freduce : ('a -> 'a) list -> 'a -> 'a;;
 

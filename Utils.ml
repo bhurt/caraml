@@ -132,6 +132,14 @@ let rec mapi ?(start=0) ?(step=1) f lst =
     loop [] start lst
 ;;
 
+let fold_lefti ?(start=0) ?(step=1) f init lst =
+    let rec loop i acc = function
+        | [] -> acc
+        | x :: xs -> loop (i + step) (f i acc x) xs
+    in
+    loop start init lst
+;;
+
 let rec freduce fs init =
     match fs with
     | [] -> init

@@ -18,7 +18,6 @@
 # The ordering of MLFILES is actually important- wrong orders cause
 # link errors.
 MLFILES = \
-    Reader.ml \
     Utils.ml \
     Info.ml \
     Error.ml \
@@ -33,10 +32,7 @@ MLFILES = \
     LambdaLift.ml \
     Simplify.ml \
     CallOpt.ml \
-    Context.ml \
-    Module.ml \
-    Function.ml \
-    Block.ml \
+    LlvmIntf.ml \
     LlvmUtils.ml \
     Assembly.ml \
     caramlc.ml
@@ -50,9 +46,9 @@ OFILES = $(MLFILES:.ml=.o)
 
 OCAMLFIND = ocamlfind
 
-PACKAGES =  camlp4,sexplib,sexplib.syntax,monad,llvm,llvm.bitwriter
+PACKAGES =  camlp4,sexplib,sexplib.syntax,llvm,llvm.bitwriter
 
-SYNTAX = -syntax camlp4o,pa_monad,sexp
+SYNTAX = -syntax camlp4o,sexp
 OCAML_FLAGS = $(SYNTAX) -package $(PACKAGES)
 
 OCAMLYACC = ocamlyacc

@@ -186,7 +186,7 @@ let apply block closure args =
     let table_p = load block ~lltype closure 0 in
     let fn_p = LlvmIntf.offset block table_p ((List.length args) - 1) in
     let fn_p = LlvmIntf.load block fn_p in
-    LlvmIntf.call block fn_p args
+    LlvmIntf.call block fn_p (closure :: args)
 ;;
 
 

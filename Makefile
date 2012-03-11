@@ -35,7 +35,8 @@ MLFILES = \
     LlvmIntf.ml \
     LlvmUtils.ml \
     Assembly.ml \
-    caramlc.ml
+    caramlc.ml \
+    make_apply.ml
 
 MLIFILES = $(MLFILES:.ml=.mli)
 
@@ -60,10 +61,13 @@ OCAMLDEP = $(OCAMLFIND) ocamldep $(OCAML_IDIR) $(SYNTAX) -package $(PACKAGES)
 OCAMLC_LIBS = 
 OCAMLOPT_LIBS = 
 
-all: caramlc
+all: caramlc make_apply
 
 caramlc: $(CMXFILES)
 	$(OCAMLOPT) -linkpkg -o $@ $(CMXFILES)
+
+make_apply: Utils.cmx Type.cmx Common.cmx Config.cmx LlvmIntf.cmx LlvmUtils.cmx make_apply.cmx
+	$(OCAMLOPT) -linkpkg -o $@ $^
 
 $(CMIFILES): %.cmi: %.mli
 	$(OCAMLC) -c $<

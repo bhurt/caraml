@@ -27,7 +27,7 @@
  *          can be larger than nparams, as can nvals+nargs.
  *)
 
-let _ = LlvmIntf.with_module "caraml_apply";;
+let _ = LlvmIntf.with_module ~no_tables:true "caraml_apply";;
 
 let fn_ptr block nparams ptr =
     let fn_ty = LlvmIntf.func_type
@@ -77,7 +77,7 @@ let make_apply_fn nparams nvals nargs =
             let (xs, block) = in_block block xs in
             let fn_ptr = fn_ptr block nparams ptr in
             let r = LlvmIntf.call block fn_ptr xs in
-            let r = LlvmIntf.bitcast block r LlvmIntf.intptr_type in
+            let r = LlvmIntf.unbox_ptr block r in
             let (ys, block) = in_block block ys in
             let r = LlvmUtils.apply block r ys in
             let _ = LlvmIntf.set_tail_call r in
@@ -123,17 +123,20 @@ let make_table nparams nvals =
     in
     let fns = List.map LlvmIntf.lookup_function fn_names in
     let c = LlvmIntf.const_struct fns in
-    let _ = Llvm.define_global (Config.apply_table_name nparams nvals) c in
+    let table_name = Config.apply_table_name nparams nvals in
+    let _ = LlvmIntf.define_global table_name c in
     ()
 ;;
 
 for nparams = 1 to Config.max_args do
-    for nvals = 0 to nparams - 1 do
+    for nvals = nparams-1 downto 0 do
         make_table nparams nvals
     done
 done;;
 
+(*
 let _ = LlvmIntf.dump_module ();;
+*)
 
 match Llvm_analysis.verify_module (LlvmIntf.mdl ()) with
     | None -> ()

@@ -61,7 +61,7 @@ OCAMLDEP = $(OCAMLFIND) ocamldep $(OCAML_IDIR) $(SYNTAX) -package $(PACKAGES)
 OCAMLC_LIBS = 
 OCAMLOPT_LIBS = 
 
-all: caramlc make_apply
+all: caramlc caraml.bc
 
 caramlc: $(CMXFILES)
 	$(OCAMLOPT) -linkpkg -o $@ $(CMXFILES)
@@ -91,6 +91,15 @@ repl:
 	$(OCAMLFIND) ocamlmktop -o $@ -package findlib -linkpkg
 	@echo "Remember to #use \"topfind\";; when starting the repl!"
 
+gc.bc: gc.c
+	clang -c -emit-llvm -o $@ $<
+
+caraml_apply.bc: make_apply
+	./make_apply
+
+caraml.bc: gc.bc caraml_apply.bc
+	llvm-ld -r -o $@ $^
+
 -include make.deps
 
 make.deps: Makefile $(MLFILES) $(MLIFILES)
@@ -103,8 +112,8 @@ clean:
 	rm -f $(CMXFILES)
 	rm -f $(OFILES)
 	rm -f Lexer.ml Parser.ml Parser.mli make.deps repl
-	rm -f make_apply caraml_apply.o caraml_apply.bc
+	rm -f make_apply caraml_apply.o caraml_apply.bc gc.bc caraml.bc
 
 realclean: clean
-	rm -f Parser.output caramlc
+	rm -f Parser.output caramlc make_apply
 

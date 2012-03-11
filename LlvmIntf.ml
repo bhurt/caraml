@@ -129,7 +129,7 @@ let make_app_table_type () =
     struct_type
         (Utils.unfoldi
             (fun i ->
-                make_app_fn_type (i + 1))
+                ptr_type (make_app_fn_type (i + 1)))
             Config.max_args)
 ;;
 
@@ -185,6 +185,14 @@ let with_function name fn_type =
 
 let end_function () =
     fn_ref := None;
+    begin
+        match Llvm_analysis.verify_module (mdl ()) with
+        | None -> ()
+        | Some reason ->
+            let _ = dump_module () in
+            let _ = Printf.fprintf stderr "Error: %s\n%!" reason in
+            exit (-1)
+    end;
     ()
 ;;
 

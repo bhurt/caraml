@@ -17,6 +17,8 @@ val float_const : float -> Llvm.llvalue;;
 val bool_const : bool -> Llvm.llvalue;;
 val unit_const : unit -> Llvm.llvalue;;
 
+val const_struct : Llvm.llvalue list -> Llvm.llvalue;;
+
 val int_init : Llvm.llvalue;;
 val float_init : Llvm.llvalue;;
 val bool_init : Llvm.llvalue;;

@@ -58,6 +58,8 @@ let bool_const x = Llvm.const_int bool_type (if x then 1 else 0);;
 
 let unit_const () = Llvm.const_int unit_type 0;;
 
+let const_struct xs = Llvm.const_struct ctx (Array.of_list xs);;
+
 let int_init = Llvm.const_null int_type;;
 
 let float_init = Llvm.const_null float_type;;

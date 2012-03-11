@@ -145,15 +145,7 @@ module InnerExpr = struct
                 assert ((List.length xs) <= Config.max_args);
                 let xs = List.map (box start_block names) xs in
                 let f = get_name start_block names (snd f) in
-                let table_p = LlvmUtils.load start_block
-                                ~lltype:(LlvmIntf.app_table_type ())
-                                f 0
-                in
-                let fn_p = LlvmIntf.offset start_block table_p
-                                ((List.length xs) - 1)
-                in
-                let fn_p = LlvmIntf.load start_block fn_p in
-                let res = LlvmIntf.call start_block fn_p xs in
+                let res = LlvmUtils.apply start_block f xs in
                 let res = LlvmIntf.unbox ty start_block res in
                 (res, start_block)
             end

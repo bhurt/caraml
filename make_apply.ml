@@ -27,149 +27,107 @@
  *          can be larger than nparams, as can nvals+nargs.
  *)
 
-let apply_fn_name nparams nvals nargs =
-    Printf.sprintf "caraml_apply_%d_%d_%d" nparams nvals nargs
+let _ = LlvmIntf.with_module "caraml_apply";;
+
+let fn_ptr block nparams ptr =
+    let ty = LlvmIntf.ptr_type (LlvmIntf.make_app_fn_type nparams) in
+    LlvmUtils.load block ~lltype:ty ptr 1
 ;;
 
-let vals nvals ptr =
-    Block.seq
-        (Utils.unfoldi
-            (fun i ->
-                let bind = Block.bind in
-                perform
-                    p <-- Block.offset ptr (i + 2);
-                    Block.load p)
-            nvals)
-;;
-
-let fn_ptr nparams ptr =
-    let bind = Block.bind in
-    perform
-        p <-- Block.offset ptr 1;
-        ty <-- Block.make_app_fn_type nparams;
-        ptr_ty <-- Block.ptr_type ty;
-        ptr_ty <-- Block.ptr_type ty;
-        p <-- Block.bitcast p ptr_ty;
-        Block.load p
+(* Not tail recursive, but since lists passed to this function will never
+ * be more than Config.max_args = 8 long, I don't care.
+ *)
+let rec in_block block = function
+    | [] -> [], block
+    | f :: fs ->
+        let x, block = f block in
+        let xs, block = in_block block fs in
+        (x :: xs), block
 ;;
 
 let make_apply_fn nparams nvals nargs =
-    if (nparams < (nvals + nargs)) then
-        begin
+    let fn_type = LlvmIntf.make_app_fn_type nargs in
+    let fn_name =
+        Printf.sprintf "caraml_apply_%d_%d_%d" nparams nvals nargs
+    in
+    let _ = LlvmIntf.with_function fn_name fn_type in
+    let ps = LlvmIntf.params () in
+    let ptr = List.hd ps in
+    let vals = 
+        List.append
+            (Utils.unfoldi
+                (fun i b -> (LlvmUtils.load b ptr (i + 2)), b)
+                nvals)
+            (List.map (fun x b -> x,b) (List.tl ps))
+    in
+
+    let block = LlvmIntf.entry_block () in
+    let r = 
+
+        if (nparams < (nvals + nargs)) then
+
             (* We can call the function, and apply the remaining vals/args
              * to the result.
              *)
-            let bind = Function.bind in
-            perform
-                ps <-- Function.params;
-                b <-- Function.entry_block;
-                Block.in_block b
-                    begin
-                        let bind = Block.bind in
-                        perform
-                            vs <-- vals nvals (List.hd ps);
-                            f_ptr <-- fn_ptr nparams (List.hd ps);
-                            r <-- Block.call f_ptr
-                                    (Utils.take nparams
-                                        (List.append vs (List.tl ps)));
-                            app_table_t <-- Block.app_table_type;
-                            app_table_ptr_t <-- Block.ptr_type app_table_t;
-                            ptr <-- Block.bitcast r app_table_ptr_t;
-                            table_p <-- Block.load ptr;
-                            fn_p <-- Block.offset table_p
-                                            (nvals + nargs - nparams);
-                            fn_p <-- Block.load fn_p;
-                            res <-- Block.call fn_p
-                                    (Utils.drop nparams
-                                        (List.append vs (List.tl ps)));
-                            _ <-- Block.set_tail_call res;
-                            _ <-- Block.ret res;
-                            Block.return ()
-                    end
+            let (xs, ys) = Utils.take_drop nparams vals in
+            let (xs, block) = in_block block xs in
+            let fn_ptr = fn_ptr block nparams ptr in
+            let r = LlvmIntf.call block fn_ptr xs in
+            let r = LlvmIntf.bitcast block r LlvmIntf.intptr_type in
+            let (ys, block) = in_block block ys in
+            let r = LlvmUtils.apply block r ys in
+            let _ = LlvmIntf.set_tail_call r in
+            r
 
-        end
-    else if (nparams == (nvals + nargs)) then
-        begin
+        else if (nparams == (nvals + nargs)) then
+
             (* We just (tail-)call the function. *)
-            let bind = Function.bind in
-            perform
-                ps <-- Function.params;
-                b <-- Function.entry_block;
-                Block.in_block b
-                    begin
-                        let bind = Block.bind in
-                        perform
-                            vs <-- vals nvals (List.hd ps);
-                            f_ptr <-- fn_ptr nparams (List.hd ps);
-                            res <-- Block.call f_ptr
-                                    (List.append vs (List.tl ps));
-                            _ <-- Block.set_tail_call res;
-                            _ <-- Block.ret res;
-                            Block.return ()
-                    end
-        end
-    else
-        begin
+            let (xs, block) = in_block block vals in
+            let fn_ptr = fn_ptr block nparams ptr in
+            let r = LlvmIntf.call block fn_ptr xs in
+            let _ = LlvmIntf.set_tail_call r in
+            r
+
+        else
+
             (* We can't call the function at all, just allocate a new
              * closure.
              *)
-            let bind = Function.bind in
-            perform
-                start_block <-- Function.entry_block;
-                (p, b) <-- LlvmUtils.heap_alloc start_block
-                                                (2 + nvals + nargs);
-                ps <-- Function.params;
-                Block.in_block b
-                    begin
-                        let c_ptr = List.hd ps in
-                        let params = List.tl ps in
-                        let bind = Block.bind in
-                        perform
-                            tag_ptr <-- Block.offset c_ptr (-1);
-                            tword <-- Block.load tag_ptr;
-                            tword <-- LlvmUtils.set_tag_word_length
-                                        ~len:(2 + nvals + nargs)
-                                        tword;
-                            p0 <-- Block.offset p (-1);
-                            _ <-- Block.store ~ptr:p0 ~value:tword;
-                            app_table_t <-- Block.app_table_type;
-                            app_table_ptr_t <-- Block.ptr_type app_table_t;
-                            ptr <-- Block.bitcast p app_table_ptr_t;
-                            table <-- Block.load_global
-                                            (Config.apply_table_name nparams
-                                                (nvals + nargs));
-                            _ <-- Block.store ~ptr ~value:table;
-                            p0 <-- Block.offset c_ptr 1;
-                            t <-- Block.load p0;
-                            p0 <-- Block.offset p 1;
-                            _ <-- Block.store ~ptr:p0 ~value:t;
-                            _ <-- Block.seq
-                                    (Utils.unfoldi
-                                        (fun i ->
-                                            perform
-                                                src <-- Block.offset c_ptr
-                                                                (i + 2);
-                                                v <-- Block.load src;
-                                                dst <-- Block.offset p (i + 2);
-                                                Block.store ~ptr:dst ~value:v)
-                                        nvals);
-                            _ <-- Block.seq
-                                    (Utils.mapi ~start:(2 + nvals)
-                                        (fun i v ->
-                                            perform
-                                                dst <-- Block.offset p i;
-                                                Block.store ~ptr:dst
-                                                            ~value:v)
-                                        params);
-                            rval <-- Block.box_ptr p;
-                            _ <-- Block.ret rval;
-                            Block.return ()
-                    end
-        end
+        
+            let (r, block) = LlvmUtils.alloc_closure block nparams
+                ~tag_word:(fun b ->
+                    let t_word = LlvmUtils.load b ptr (-1) in
+                    (LlvmUtils.set_tag_word_length b
+                        ~len:(2 + nvals + nargs)
+                        t_word), b)
+                ~fn_ptr:(fun b ->
+                    (LlvmUtils.load b ~lltype:LlvmIntf.intptr_type ptr 1), b)
+                vals
+            in
+            LlvmIntf.box_ptr block r
+
+    in
+    let _ = LlvmIntf.ret block r in
+    let _ = LlvmIntf.end_function () in
+    fn_name
 ;;
 
-(*
-let _ =
-    let name = apply_fn_name nparams nvals nargs in name
+let make_table nparams nvals =
+    let fn_names =
+        Utils.unfoldi (fun i -> make_apply_fn nparams nvals (i + 1))
+            Config.max_args
+    in
+    let fns = List.map LlvmIntf.lookup_function fn_names in
+    let c = LlvmIntf.const_struct fns in
+    let _ = Llvm.define_global (Config.apply_table_name nparams nvals) c in
+    ()
 ;;
-*)
+
+for nparams = 1 to Config.max_args do
+    for nvals = 0 to nparams - 1 do
+        make_table nparams nvals
+    done
+done;;
+
+let _ = LlvmIntf.write_bitcode_file "caraml_apply.o";;
+

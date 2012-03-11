@@ -124,7 +124,8 @@ let heap_alloc start_block num_words =
     let limit = LlvmIntf.load_global alloc_block "caraml_limit" in
     let new_base = LlvmIntf.offset alloc_block base (~- (num_words + 1)) in
     let test = LlvmIntf.ptr_cmp_lt alloc_block new_base limit in
-    let _ = LlvmIntf.cond_br ~test ~on_true:gc_block ~on_false:res_block in
+    let _ = LlvmIntf.cond_br alloc_block ~test ~on_true:gc_block
+                                ~on_false:res_block in
 
     (* gc_block: *)
     let f = LlvmIntf.lookup_function "caraml_gc" in
@@ -180,5 +181,12 @@ let alloc_closure start_block nargs ~tag_word ~fn_ptr applied_vals =
     (p, b)
 ;;
 
+let apply block closure args =
+    let lltype = LlvmIntf.ptr_type (LlvmIntf.app_table_type ()) in
+    let table_p = load block ~lltype closure 0 in
+    let fn_p = LlvmIntf.offset block table_p ((List.length args) - 1) in
+    let fn_p = LlvmIntf.load block fn_p in
+    LlvmIntf.call block fn_p args
+;;
 
 

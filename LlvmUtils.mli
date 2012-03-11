@@ -39,3 +39,7 @@ val alloc_closure : LlvmIntf.block_t
                         -> get_val_t list
                         -> (Llvm.llvalue * LlvmIntf.block_t)
 ;;
+
+val apply : LlvmIntf.block_t -> Llvm.llvalue -> Llvm.llvalue list
+                -> Llvm.llvalue
+;;

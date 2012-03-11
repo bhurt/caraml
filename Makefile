@@ -103,6 +103,7 @@ clean:
 	rm -f $(CMXFILES)
 	rm -f $(OFILES)
 	rm -f Lexer.ml Parser.ml Parser.mli make.deps repl
+	rm -f make_apply caraml_apply.o
 
 realclean: clean
 	rm -f Parser.output caramlc

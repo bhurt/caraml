@@ -130,11 +130,14 @@ let heap_alloc start_block num_words =
     (* gc_block: *)
     let f = LlvmIntf.lookup_function "caraml_gc" in
     let nwords = LlvmIntf.int_const (num_words + 1) in
-    let _ = LlvmIntf.call gc_block f [ nwords ] in
+    let _ = LlvmIntf.void_call gc_block f [ nwords ] in
     let _ = LlvmIntf.br gc_block alloc_block in
 
     (* res_block: *)
-    let _ = LlvmIntf.store res_block ~ptr:base ~value:new_base in
+    let _ = LlvmIntf.store res_block
+                ~ptr:(LlvmIntf.lookup_global "caraml_base")
+                ~value:new_base
+    in
     let r = LlvmIntf.offset res_block new_base 1 in
     (r, res_block)
 ;;
@@ -153,10 +156,10 @@ let alloc_closure start_block nargs ~tag_word ~fn_ptr applied_vals =
     let _ = store b ~ptr:p (-1) ~value:t_word in
 
     (* Set the apply function table pointer *)
-    let table = LlvmIntf.lookup_global
-                    (Config.apply_table_name nargs
-                        (List.length applied_vals))
+    let table_name =
+        Config.apply_table_name nargs (List.length applied_vals)
     in
+    let table = LlvmIntf.lookup_global table_name in
     let _ = store b
                 ~lltype:(LlvmIntf.ptr_type
                             (LlvmIntf.app_table_type ()))
@@ -184,7 +187,7 @@ let alloc_closure start_block nargs ~tag_word ~fn_ptr applied_vals =
 let apply block closure args =
     let lltype = LlvmIntf.ptr_type (LlvmIntf.app_table_type ()) in
     let table_p = load block ~lltype closure 0 in
-    let fn_p = LlvmIntf.offset block table_p ((List.length args) - 1) in
+    let fn_p = LlvmIntf.struct_gep block table_p ((List.length args) - 1) in
     let fn_p = LlvmIntf.load block fn_p in
     LlvmIntf.call block fn_p (closure :: args)
 ;;

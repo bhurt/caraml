@@ -30,7 +30,11 @@
 let _ = LlvmIntf.with_module "caraml_apply";;
 
 let fn_ptr block nparams ptr =
-    let ty = LlvmIntf.ptr_type (LlvmIntf.make_app_fn_type nparams) in
+    let fn_ty = LlvmIntf.func_type
+                    (Utils.repeat nparams LlvmIntf.int_type)
+                    LlvmIntf.int_type
+    in
+    let ty = LlvmIntf.ptr_type fn_ty in
     LlvmUtils.load block ~lltype:ty ptr 1
 ;;
 
@@ -62,7 +66,7 @@ let make_apply_fn nparams nvals nargs =
     in
 
     let block = LlvmIntf.entry_block () in
-    let r = 
+    let (r, block) = 
 
         if (nparams < (nvals + nargs)) then
 
@@ -77,7 +81,7 @@ let make_apply_fn nparams nvals nargs =
             let (ys, block) = in_block block ys in
             let r = LlvmUtils.apply block r ys in
             let _ = LlvmIntf.set_tail_call r in
-            r
+            r, block
 
         else if (nparams == (nvals + nargs)) then
 
@@ -86,7 +90,7 @@ let make_apply_fn nparams nvals nargs =
             let fn_ptr = fn_ptr block nparams ptr in
             let r = LlvmIntf.call block fn_ptr xs in
             let _ = LlvmIntf.set_tail_call r in
-            r
+            r, block
 
         else
 
@@ -104,7 +108,7 @@ let make_apply_fn nparams nvals nargs =
                     (LlvmUtils.load b ~lltype:LlvmIntf.intptr_type ptr 1), b)
                 vals
             in
-            LlvmIntf.box_ptr block r
+            (LlvmIntf.box_ptr block r), block
 
     in
     let _ = LlvmIntf.ret block r in
@@ -129,5 +133,14 @@ for nparams = 1 to Config.max_args do
     done
 done;;
 
-let _ = LlvmIntf.write_bitcode_file "caraml_apply.o";;
+let _ = LlvmIntf.dump_module ();;
+
+match Llvm_analysis.verify_module (LlvmIntf.mdl ()) with
+    | None -> ()
+    | Some reason ->
+        Printf.fprintf stderr "Compile failed: %s\n%!" reason
+;;
+
+let _ = LlvmIntf.write_bitcode_file "caraml_apply.bc";;
+
 

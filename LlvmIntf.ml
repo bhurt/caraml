@@ -133,7 +133,7 @@ let make_app_table_type () =
             Config.max_args)
 ;;
 
-let init_module () =
+let init_module no_tables =
     begin
         let m = mdl () in
         let table_type = make_app_table_type () in
@@ -144,22 +144,27 @@ let init_module () =
                         (func_type [ int_type ] void_type)
                         m
         in
-        for i = 1 to Config.max_args do
-            for j = 0 to i-1 do
-                let _ = Llvm.declare_global table_type
-                            (Printf.sprintf "caraml_apply_table_%d_%d" i j)
-                            m
-                in ()
-            done;
-        done;
+        if not no_tables then
+            begin
+                for i = 1 to Config.max_args do
+                    for j = 0 to i-1 do
+                        let _ = Llvm.declare_global table_type
+                                    (Config.apply_table_name i j)
+                                    m
+                        in ()
+                    done;
+                done;
+            end
+        else
+        ();
         ()
     end
 ;;
 
-let with_module name =
+let with_module ?(no_tables=false) name =
     let m = Llvm.create_module ctx name in
     mdl_ref := Some m;
-    init_module ();
+    init_module no_tables;
     ()
 ;;
 
@@ -185,6 +190,7 @@ let with_function name fn_type =
 
 let end_function () =
     fn_ref := None;
+(*
     begin
         match Llvm_analysis.verify_module (mdl ()) with
         | None -> ()
@@ -193,6 +199,7 @@ let end_function () =
             let _ = Printf.fprintf stderr "Error: %s\n%!" reason in
             exit (-1)
     end;
+*)
     ()
 ;;
 
@@ -290,9 +297,19 @@ let offset b ptr idx =
     Llvm.build_in_bounds_gep ptr [| i |] name b.builder
 ;;
 
+let struct_gep b ptr idx =
+    let name = alloc_reg_name () in
+    Llvm.build_struct_gep ptr idx name b.builder
+;;
+    
+
 let call b f xs =
     let name = alloc_reg_name () in
     Llvm.build_call f (Array.of_list xs) name b.builder
+;;
+
+let void_call b f xs =
+    Llvm.build_call f (Array.of_list xs) "" b.builder
 ;;
 
 let int_to_bool b x =

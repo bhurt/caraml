@@ -39,7 +39,7 @@ val write_bitcode_file : string -> bool;;
 val make_app_fn_type : int -> Llvm.lltype;;
 val make_app_table_type : unit -> Llvm.lltype;;
 
-val with_module : string -> unit;;
+val with_module : ?no_tables:bool -> string -> unit;;
 
 val with_function : string -> Llvm.lltype -> unit;;
 val end_function : unit -> unit;;
@@ -84,8 +84,10 @@ val phi : block_t -> (Llvm.llvalue * block_t) list -> Llvm.llvalue;;
 val load : block_t -> Llvm.llvalue -> Llvm.llvalue;;
 val store : block_t -> ptr:Llvm.llvalue -> value:Llvm.llvalue -> Llvm.llvalue;;
 val offset : block_t -> Llvm.llvalue -> int -> Llvm.llvalue;;
+val struct_gep : block_t -> Llvm.llvalue -> int -> Llvm.llvalue;;
 
 val call : block_t -> Llvm.llvalue -> Llvm.llvalue list -> Llvm.llvalue;;
+val void_call : block_t -> Llvm.llvalue -> Llvm.llvalue list -> Llvm.llvalue;;
 
 val int_to_bool : block_t -> Llvm.llvalue -> Llvm.llvalue;;
 val bool_to_int : block_t -> Llvm.llvalue -> Llvm.llvalue;;

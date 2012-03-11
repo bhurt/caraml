@@ -47,7 +47,7 @@ OFILES = $(MLFILES:.ml=.o)
 
 OCAMLFIND = ocamlfind
 
-PACKAGES =  camlp4,sexplib,sexplib.syntax,llvm,llvm.bitwriter
+PACKAGES =  camlp4,sexplib,sexplib.syntax,llvm,llvm.bitwriter,llvm.analysis
 
 SYNTAX = -syntax camlp4o,sexp
 OCAML_FLAGS = $(SYNTAX) -package $(PACKAGES)
@@ -103,7 +103,7 @@ clean:
 	rm -f $(CMXFILES)
 	rm -f $(OFILES)
 	rm -f Lexer.ml Parser.ml Parser.mli make.deps repl
-	rm -f make_apply caraml_apply.o
+	rm -f make_apply caraml_apply.o caraml_apply.bc
 
 realclean: clean
 	rm -f Parser.output caramlc

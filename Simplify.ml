@@ -92,14 +92,40 @@ module Expr = struct
         | LambdaLift.Expr.UnOp(info, ty, op, x) ->
             UnOp(info, ty, op, (convert x))
         | LambdaLift.Expr.Apply(info, ty, f, x) ->
-            lift_var (convert x)
-                (fun x ->
-                    let f = convert f in
-                    match f with
-                    | Apply(_, _, f', xs) ->
-                        Apply(info, ty, f', (List.append xs [ x ]))
-                    | _ ->
-                        lift_var f (fun f' -> Apply(info, ty, f', [x])))
+            let rec collapse xs = function
+                | LambdaLift.Expr.Apply(i, t, g, y) ->
+                    collapse ((i, t, y) :: xs) g
+                | g -> g, xs
+            in
+            let f, xs = collapse [ (info, ty, x) ] f in
+            let rec loop2 short f xs =
+                let n = if short then
+                            Config.max_args - 1
+                        else
+                            Config.max_args
+                in
+                if ((List.length xs) > n) then
+                    let ys, zs = Utils.take_drop n xs in
+                    let (i, t, _) = Utils.last ys in
+                    let ys = List.map (fun (_, _, y) -> y) ys in
+                    lift_var (Apply(i, t, f, ys))
+                        (fun h -> loop2 true h zs)
+                else
+                    let (i, t, _) = Utils.last xs in
+                    let xs = List.map (fun (_, _, y) -> y) xs in
+                    Apply(i, t, f, xs)
+            in
+
+            let rec loop1 xs = function
+                | [] ->
+                    let xs = List.rev xs in
+                    lift_var (convert f)
+                        (fun g -> loop2 false g xs)
+                | (i, t, y) :: ys ->
+                    lift_var (convert y)
+                        (fun y -> loop1 ((i, t, y) :: xs) ys)
+            in
+            loop1 [] xs
         | LambdaLift.Expr.Var(info, ty, v) ->
             Var(info, ty, v)
         | LambdaLift.Expr.Const(info, ty, c) ->

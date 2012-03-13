@@ -63,6 +63,12 @@ let take_drop n lst =
         loop [] n lst
 ;;
 
+let rec last = function
+    | [] -> failwith "last called on an empty list"
+    | [x] -> x
+    | _ :: xs -> last xs
+;;
+
 let repeat n x =
     if (n < 0) then
         failwith "Utils.repeat: n < 0"

@@ -68,21 +68,21 @@ module Expr = struct
         | Const(_, _, _) -> m
     ;;
 
+    let get_type = function
+        | Let(_, ty, _, _, _)
+        | LetTuple(_, ty, _, _, _)
+        | If(_, ty, _, _, _)
+        | Tuple(_, ty, _)
+        | BinOp(_, ty, _, _, _)
+        | UnOp(_, ty, _, _)
+        | Apply(_, ty, _, _)
+        | Var(_, ty, _)
+        | Const(_, ty, _)
+            -> ty
+    ;;
+
     let mk_apply info f x =
-        let ty =
-            match f with
-            | Let(_, ty, _, _, _)
-            | LetTuple(_, ty, _, _, _)
-            | If(_, ty, _, _, _)
-            | Tuple(_, ty, _)
-            | BinOp(_, ty, _, _, _)
-            | UnOp(_, ty, _, _)
-            | Apply(_, ty, _, _)
-            | Var(_, ty, _)
-            | Const(_, ty, _)
-                -> ty
-        in
-        match ty with
+        match get_type f with
         | Type.Arrow(_, b) -> Apply(info, b, f, x)
         | _ -> assert false
     ;;
@@ -90,6 +90,124 @@ module Expr = struct
     let from_some = function
         | Some x -> x
         | None -> assert false
+    ;;
+
+    let rec rename vmap = function
+        | Let(info, ty, arg, x, y) ->
+            (* You can only rename free variables. *)
+            let _ = assert
+                        (not
+                            (Common.Var.Map.mem
+                                (from_some (snd arg))
+                                vmap))
+            in
+            Let(info, ty, arg, (rename vmap x), (rename vmap y))
+        | LetTuple(info, ty, args, x, y) ->
+            (* You can only rename free variables. *)
+            let _ = assert
+                        (not
+                            (List.exists
+                                (fun v ->
+                                    match snd v with
+                                    | Some x -> Common.Var.Map.mem x vmap
+                                    | None -> false)
+                                args))
+            in
+            LetTuple(info, ty, args, (rename vmap x), (rename vmap y))
+        | If(info, ty, x, y, z) ->
+            If(info, ty, (rename vmap x), (rename vmap y), (rename vmap z))
+        | Tuple(info, ty, xs) ->
+            Tuple(info, ty, List.map (rename vmap) xs)
+        | BinOp(info, ty, x, op, y) ->
+            BinOp(info, ty, (rename vmap x), op, (rename vmap y))
+        | UnOp(info, ty, op, x) ->
+            UnOp(info, ty, op, (rename vmap x))
+        | Apply(info, ty, f, x) ->
+            Apply(info, ty, (rename vmap f), (rename vmap x))
+        | Var(info, ty, v) ->
+            begin
+                try
+                    let v' = Common.Var.Map.find v vmap in
+                    Var(info, ty, v')
+                with
+                | Not_found -> Var(info, ty, v)
+            end
+        | Const(info, ty, c) -> Const(info, ty, c)
+    ;;
+
+    let lift_fn info ty (args: Common.Arg.t list) x lifted globals =
+        let name = Common.Var.generate () in
+        let m = freevars globals Common.Var.Map.empty x in
+        let vs = Common.Var.Map.fold
+            (fun v ty lst -> (ty, v) :: lst) m []
+        in
+        match vs with
+        | [] ->
+            let lifted = (name, info, ty, args, x) :: lifted in
+            lifted, Var(info, ty, name)
+        | [ a ] ->
+            let new_name = Common.Var.generate () in
+            let x = rename (Common.Var.Map.singleton (snd a) new_name) x in
+            let ty' = Type.Arrow(fst a, ty) in
+            let lifted = (name, info, ty', ((fst a), Some new_name) :: args, x)
+                                :: lifted
+            in
+            lifted, (mk_apply info
+                            (Var(info, ty', name))
+                            (Var(info, fst a, snd a)))
+        | _ ->
+            let new_names = List.map (fun _ -> Common.Var.generate ())
+                                        vs
+            in
+            let vmap = List.fold_left2
+                        (fun m k d -> Common.Var.Map.add (snd k) d m)
+                        Common.Var.Map.empty
+                        vs
+                        new_names
+            in
+            let x = rename vmap x in
+            if ((List.length vs) + (List.length args)) > Config.max_args
+            then
+                (* Too many args- capture the bound vars in a tuple *)
+                let tuple_name = Common.Var.generate () in
+                let tuple_ty = Type.Tuple (List.map fst vs) in
+                let fn_ty = Type.Arrow(tuple_ty, ty) in
+                let tuple_args =
+                    List.map2 (fun v n -> (fst v), Some n) vs new_names
+                in
+                let x = LetTuple(info, get_type x, tuple_args,
+                                    Var(info, tuple_ty, tuple_name),
+                                    x)
+                in
+                let lifted = (name, info, fn_ty,
+                                ((tuple_ty, Some tuple_name) :: args), x)
+                                :: lifted
+                in
+                lifted,
+                    Apply(info, ty, Var(info, fn_ty, name), 
+                        Tuple(info, ty,
+                                List.map
+                                    (fun v -> Var(info, fst v, snd v))
+                                    vs))
+            else
+                (* Apply extra arguments one at a time *)
+
+                let ty' = List.fold_right
+                    (fun a t -> Type.Arrow((fst a), t))
+                    vs ty
+                in
+                let new_args = List.map (fun (x, y) -> x, Some y) vs in
+                let lifted =
+                    (name, info, ty', (List.append new_args args), x)
+                    :: lifted
+                in
+                lifted,
+                    List.fold_left
+                        (fun f a -> 
+                            mk_apply info f
+                                        (Var(info, fst a, (snd a))))
+                        (Var(info, ty', name))
+                        vs
     ;;
 
     let rec convert globals lifted = function
@@ -102,37 +220,7 @@ module Expr = struct
         | Alpha.Expr.Lambda(info, ty, args, x) ->
             begin
                 let (lifted, x) = convert globals lifted x in
-                let name = Common.Var.generate () in
-                let m = freevars globals Common.Var.Map.empty x in
-                let vs = Common.Var.Map.fold
-                    (fun v ty lst -> (ty, Some v) :: lst) m []
-                in
-                match vs with
-                | [] ->
-                    let lifted = (name, info, ty, args, x) :: lifted in
-                    lifted, Var(info, ty, name)
-                | [ a ] ->
-                    let ty' = Type.Arrow(fst a, ty) in
-                    let lifted = (name, info, ty', a :: args, x) :: lifted in
-                    lifted, (mk_apply info
-                                    (Var(info, ty', name))
-                                    (Var(info, (fst a), from_some (snd a))))
-                | _ ->
-                    let ty' = List.fold_right
-                        (fun a t -> Type.Arrow((fst a), t))
-                        vs ty
-                    in
-                    let lifted =
-                        (name, info, ty', (List.append vs args), x) :: lifted
-                    in
-                    lifted,
-                        List.fold_left
-                            (fun f a -> 
-                                mk_apply info f
-                                            (Var(info, fst a,
-                                                        from_some (snd a))))
-                            (Var(info, ty', name))
-                            vs
+                lift_fn info ty args x lifted globals
             end
         | Alpha.Expr.Let(info, ty, v, x, y) ->
             let lifted, x = convert globals lifted x in

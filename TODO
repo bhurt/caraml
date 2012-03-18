@@ -19,18 +19,7 @@ In vague order:
 
 - Add support for large (> 32 elems) tuples.
 
-- Add support for large (> 8 args) functions.
-    This is done by having a currying layer.  So we translate:
-        let f x1 x2 ... x8 x9 ... = ...
-    to:
-        let f$1 (x1, x2, ..., x8) x9 ... = ...
-        let f x1 x2 ... x8 = f$1 (x1, x2, ..., x8)
-    repeating as necessary if f$1 has more than 8 args (incl. the tuple)
-    Note that this can be done immediately after lambda lifting.
-
 - Add simple garbage collection (stop-the-world mark-sweep), shadow stack
-
-- Add support for large (> 28 args) functions.
 
 - Add support for segmented (infinite) stacks.
 

@@ -363,8 +363,12 @@ let assemble = function
 
 let create_main init_fns =
     let fn_t = LlvmIntf.func_type [] LlvmIntf.void_type in
+    let got_here = LlvmIntf.declare_function "got_here" fn_t in
+    let gc_init = LlvmIntf.declare_function "caraml_gc_init" fn_t in
     let _ = LlvmIntf.with_function "main" fn_t in
     let block = LlvmIntf.entry_block () in
+    let _ = LlvmIntf.void_call block got_here [] in
+    let _ = LlvmIntf.void_call block gc_init [] in
     let rec loop = function
         | [] -> ()
         | f :: fns ->

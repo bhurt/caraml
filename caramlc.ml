@@ -23,6 +23,7 @@ let dump_lambda_lift = ref false;;
 let dump_simplify = ref false;;
 let dump_callopt = ref false;;
 let dump_llvm = ref false;;
+let echo = ref false;
 
 type dumps_t = {
     ast_out : out_channel option;
@@ -138,6 +139,25 @@ let base_name name =
     | Not_found -> name
 ;;
 
+let link_native base_name =
+    let cmd = Printf.sprintf "llvm-ld -native -o '%s' '%s.bc' caraml.bc"
+                    base_name base_name
+    in
+    let _ = if !echo then
+                print_endline cmd
+            else
+                ()
+    in
+    let res = Unix.system cmd in
+    match res with
+    | Unix.WEXITED(0) -> ()
+    | _ ->
+        begin
+            Printf.fprintf stderr "llvm-ld failed.\n";
+            exit (-1)
+        end
+;;
+
 let parse_file name =
     let base = base_name name in
     let dumps = make_dumps base in
@@ -161,7 +181,8 @@ let parse_file name =
                         flush stderr
                     end;
                 close_in inchan;
-                let _ = LlvmIntf.write_bitcode_file (base ^ ".o") in
+                let _ = LlvmIntf.write_bitcode_file (base ^ ".bc") in
+                let _ = link_native base in
                 ()
             end
         with
@@ -178,15 +199,15 @@ let parse_file name =
         
 
 let arg_spec = [
-    "-dump-ast", Arg.Set dump_ast, "Dump the AST.";
-    "-dump-annot", Arg.Set dump_annot, "Dump the type-annotated AST.";
-    "-dump-alpha", Arg.Set dump_alpha, "Dump the alpha-renamed AST.";
-    "-dump-lambda-lifted", Arg.Set dump_lambda_lift, 
+    "--dump-ast", Arg.Set dump_ast, "Dump the AST.";
+    "--dump-annot", Arg.Set dump_annot, "Dump the type-annotated AST.";
+    "--dump-alpha", Arg.Set dump_alpha, "Dump the alpha-renamed AST.";
+    "--dump-lambda-lifted", Arg.Set dump_lambda_lift, 
         "Dump the lambda-lifted AST.";
-    "-dump-simplify", Arg.Set dump_simplify, "Dump the simplified AST.";
-    "-dump-callopt", Arg.Set dump_callopt, "Dump the call optimized AST.";
-    "-dump-llvm", Arg.Set dump_llvm, "Dump the LLVM assembly to stderr.";
-    "-dump-all", Arg.Unit
+    "--dump-simplify", Arg.Set dump_simplify, "Dump the simplified AST.";
+    "--dump-callopt", Arg.Set dump_callopt, "Dump the call optimized AST.";
+    "--dump-llvm", Arg.Set dump_llvm, "Dump the LLVM assembly to stderr.";
+    "--dump-all", Arg.Unit
                     (fun () ->
                         dump_ast := true;
                         dump_annot := true;
@@ -196,6 +217,7 @@ let arg_spec = [
                         dump_callopt := true;
                         dump_llvm := true),
         "Dump all intermediate represetations.";
+    "--echo", Arg.Set echo, "Echo the ld command to stdout.";
     "-", Arg.String parse_file, "Parse a file that begins with a -"
 ];;
 

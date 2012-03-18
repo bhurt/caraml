@@ -18,3 +18,5 @@
 
 val assemble : CallOpt.t -> string;;
 
+val create_main : string list -> unit;;
+

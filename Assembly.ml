@@ -360,3 +360,21 @@ let assemble = function
     | CallOpt.TopExpr(_, _, x) -> make_static x
 ;;
 
+
+let create_main init_fns =
+    let fn_t = LlvmIntf.func_type [] LlvmIntf.void_type in
+    let _ = LlvmIntf.with_function "main" fn_t in
+    let block = LlvmIntf.entry_block () in
+    let rec loop = function
+        | [] -> ()
+        | f :: fns ->
+            let g = LlvmIntf.lookup_function f in
+            let _ = LlvmIntf.void_call block g [] in
+            loop fns
+    in
+    let () = loop init_fns in
+    let _ = LlvmIntf.ret_void block in
+    let _ = LlvmIntf.end_function () in
+    ()
+;;
+

@@ -18,6 +18,11 @@
 
 open Sexplib.Conv;;
 
+let from_some = function
+    | Some x -> x
+    | None -> assert false
+;;
+
 module Expr = struct
 
     type t =
@@ -85,11 +90,6 @@ module Expr = struct
         match get_type f with
         | Type.Arrow(_, b) -> Apply(info, b, f, x)
         | _ -> assert false
-    ;;
-
-    let from_some = function
-        | Some x -> x
-        | None -> assert false
     ;;
 
     let rec rename vmap = function
@@ -272,6 +272,50 @@ type t =
     with sexp
 ;;
 
+let rec make_fun info ty name args x =
+    let n = List.length args in
+    if (n <= Config.max_args) then
+        [ TopFun(info, ty, name, args, x) ]
+    else
+        let c = n mod Config.max_args in
+        let c = if (c == 0) then Config.max_args else
+                    if (c == 1) then 2 else c
+        in
+        let taken_args, rem_args = Utils.take_drop c args in
+        let inner_fn_name = Common.Var.generate () in
+        let rec drop_arrows n = function
+            | Type.Arrow(f, x) ->
+                if (n == 1) then x else drop_arrows (n - 1) x
+            | _ -> assert false
+        in
+        let inner_ty = drop_arrows c ty in
+        let new_arg_names =
+            List.map (fun _ -> Common.Var.generate ()) taken_args
+        in
+        let new_args =
+            List.map2 (fun v n -> (fst v), Some n) taken_args new_arg_names
+        in
+        let tuple_arg_name = Common.Var.generate () in
+        let tuple_type = Type.Tuple (List.map fst taken_args) in
+        let y = Expr.Apply(info, ty,
+                            (Expr.Var(info, inner_ty, inner_fn_name)),
+                            (Expr.Tuple(info, tuple_type,
+                                            List.map
+                                                (fun (t, v) ->
+                                                    Expr.Var(info, t,
+                                                                from_some v))
+                                                new_args)))
+        in
+        let rem_args = (tuple_type, Some tuple_arg_name) :: rem_args in
+        let x =
+            Expr.LetTuple(info, Expr.get_type x, taken_args,
+                            Expr.Var(info, tuple_type, tuple_arg_name),
+                            x)
+        in
+        (TopFun(info, ty, name, new_args, y)) :: 
+            make_fun info inner_ty inner_fn_name rem_args x
+;;
+
 let rec convert globals = function
     | Alpha.Top(info, ty, None, Alpha.Expr.Lambda(_, _, _, _)) ->
         (* Code of the form let _ = \x -> ... doesn't do anything
@@ -292,8 +336,10 @@ let rec convert globals = function
         (Common.Var.Set.add v globals),
         List.fold_left
             (fun fns (name, info, ty, args, x) ->
-                (TopFun(info, ty, name, args, x)) :: fns)
-            [ TopFun(info, ty, v, args, x) ]
+                List.append
+                    (make_fun info ty name args x)
+                    fns)
+            (make_fun info ty v args x)
             lifted
 
     | Alpha.Top(info, ty, Some(v), x) ->

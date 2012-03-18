@@ -49,7 +49,7 @@ let maybe_dump ocopt f x =
 
 let rec parse_loop lexbuf dumps state =
     match Parser.top_level Lexer.token lexbuf with
-    | AST.EOF -> state
+    | AST.EOF -> state.init_fns
     | AST.SyntaxError -> raise Exit;
     | AST.Form ast ->
         let _ = maybe_dump dumps.ast_out AST.sexp_of_t ast in
@@ -153,7 +153,8 @@ let parse_file name =
                 lexbuf.Lexing.lex_curr_p <-
                     {   lexbuf.Lexing.lex_curr_p with
                         Lexing.pos_fname = name };
-                let _ = parse_loop lexbuf dumps state in
+                let init_fns = parse_loop lexbuf dumps state in
+                let _ = Assembly.create_main (List.rev init_fns) in
                 if !dump_llvm then
                     begin
                         LlvmIntf.dump_module ();

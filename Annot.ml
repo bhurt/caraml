@@ -260,6 +260,7 @@ end;;
 
 type t =
     | Top of Info.t * Type.t * (string option) * Expr.t
+    | Extern of Info.t * string * Common.External.t
     with sexp;;
 
 let convert type_env = function
@@ -272,5 +273,13 @@ let convert type_env = function
             | None -> type_env
         in
         type_env, Top(info, ty, v, x)
+    | AST.Extern(info, v, extern) ->
+        let type_env = StringMap.add v
+            (List.fold_right (fun f x -> Type.Arrow(f, x))
+                extern.Common.External.arg_types
+                extern.Common.External.return_type)
+            type_env
+        in
+        type_env, Extern(info, v, extern)
 ;;
 

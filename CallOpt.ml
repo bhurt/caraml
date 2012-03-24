@@ -37,6 +37,8 @@ module InnerExpr = struct
                                     * ((Type.t * Common.Var.t) list)
         | Var of Info.t * Type.t * Common.Var.t
         | Const of Info.t * Type.t * Common.Const.t
+        | CallExtern of Info.t * Type.t * Common.External.t
+                            * ((Type.t * Common.Var.t) list)
         with sexp
     ;;
 
@@ -92,6 +94,8 @@ module InnerExpr = struct
             Var(info, ty, v)
         | Simplify.Expr.Const(info, ty, c) ->
             Const(info, ty, c)
+        | Simplify.Expr.CallExtern(info, ty, xtern, xs) ->
+            CallExtern(info, ty, xtern, xs)
     ;;
 
     let get_type = function
@@ -106,6 +110,7 @@ module InnerExpr = struct
         | InnerCall(_, ty, _, _)
         | Var(_, ty, _)
         | Const(_, ty, _)
+        | CallExtern(_, ty, _, _)
         -> ty
     ;;
 
@@ -121,6 +126,8 @@ module TailExpr = struct
         | If of Info.t * Type.t * InnerExpr.t * t * t
         | TailCall of Info.t * Type.t * (Type.t * Common.Var.t)
                                         * ((Type.t * Common.Var.t) list)
+        | TailCallExtern of Info.t * Type.t * Common.External.t
+                            * ((Type.t * Common.Var.t) list)
         with sexp
     ;;
 
@@ -133,6 +140,8 @@ module TailExpr = struct
             If(info, ty, x, return y, return z)
         | InnerExpr.InnerCall(info, ty, f, xs) ->
             TailCall(info, ty, f, xs)
+        | InnerExpr.CallExtern(info, ty, xtern, xs) ->
+            TailCallExtern(info, ty, xtern, xs)
         | x -> Return x
     ;;
 
@@ -144,6 +153,7 @@ module TailExpr = struct
         | LetTuple(_, ty, _, _, _)
         | If(_, ty, _, _, _)
         | TailCall(_, ty, _, _)
+        | TailCallExtern(_, ty, _, _)
         -> ty
     ;;
 

@@ -31,6 +31,8 @@ module Expr = struct
                                         * ((Type.t * Common.Var.t) list)
         | Var of Info.t * Type.t * Common.Var.t
         | Const of Info.t * Type.t * Common.Const.t
+        | CallExtern of Info.t * Type.t * Common.External.t
+                                * ((Type.t * Common.Var.t) list)
         with sexp
     ;;
 
@@ -44,6 +46,7 @@ module Expr = struct
         | Apply(info, _, _, _)
         | Var(info, _, _)
         | Const(info, _, _)
+        | CallExtern(info, _, _, _)
         -> info
     ;;
 
@@ -57,6 +60,7 @@ module Expr = struct
         | Apply(_, ty, _, _)
         | Var(_, ty, _)
         | Const(_, ty, _)
+        | CallExtern(_, ty, _, _)
         -> ty
     ;;
 
@@ -130,6 +134,8 @@ module Expr = struct
             Var(info, ty, v)
         | LambdaLift.Expr.Const(info, ty, c) ->
             Const(info, ty, c)
+        | LambdaLift.Expr.CallExtern(info, ty, xtern, xs) ->
+            CallExtern(info, ty, xtern, xs)
     ;;
 
 

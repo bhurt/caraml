@@ -136,3 +136,13 @@ module Const = struct
 end;;
 
 
+module External = struct
+
+    type t = {
+        real_name : string;
+        return_type : Type.t;
+        arg_types : Type.t list;
+    } with sexp;;
+
+
+end;;

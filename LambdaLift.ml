@@ -35,6 +35,8 @@ module Expr = struct
         | Apply of Info.t * Type.t * t * t
         | Var of Info.t * Type.t * Common.Var.t
         | Const of Info.t * Type.t * Common.Const.t
+        | CallExtern of Info.t * Type.t * Common.External.t
+                                        * ((Type.t * Common.Var.t) list)
         with sexp
     ;;
 
@@ -71,6 +73,15 @@ module Expr = struct
             else
                 Common.Var.Map.add v ty m
         | Const(_, _, _) -> m
+        | CallExtern(_, _, _, xs) ->
+            List.fold_left
+                (fun m (ty, v) ->
+                    if (Common.Var.Set.mem v bound) then
+                        m
+                    else
+                        Common.Var.Map.add v ty m)
+                m
+                xs
     ;;
 
     let get_type = function
@@ -83,6 +94,7 @@ module Expr = struct
         | Apply(_, ty, _, _)
         | Var(_, ty, _)
         | Const(_, ty, _)
+        | CallExtern(_, ty, _, _)
             -> ty
     ;;
 
@@ -133,6 +145,19 @@ module Expr = struct
                 | Not_found -> Var(info, ty, v)
             end
         | Const(info, ty, c) -> Const(info, ty, c)
+        | CallExtern(info, ty, xt, xs) -> 
+            let xs =
+                List.map
+                    (fun (t, v) ->
+                        try
+                            let v' = Common.Var.Map.find v vmap in
+                            (t, v')
+                        with
+                        | Not_found -> (t, v))
+                    xs
+            in
+            CallExtern(info, ty, xt, xs)
+
     ;;
 
     let lift_fn info ty (args: Common.Arg.t list) x lifted globals =
@@ -360,5 +385,26 @@ let rec convert globals = function
             [ TopExpr(info, ty, x) ]
             lifted
 
+    | Alpha.Extern(info, v, extern) ->
+        let globals = Common.Var.Set.add v globals in
+        let ty = List.fold_right (fun f x -> Type.Arrow(f, x))
+                    extern.Common.External.arg_types
+                    extern.Common.External.return_type
+        in
+        let arg_names = List.map (fun _ -> Common.Var.generate ())
+                                extern.Common.External.arg_types
+        in
+        let args = List.map2 (fun t n -> t, Some n)
+                        extern.Common.External.arg_types
+                        arg_names
+        in
+        let x = Expr.CallExtern(info, extern.Common.External.return_type,
+                                    extern,
+                                    (List.map2
+                                        (fun t n -> t,n)
+                                        extern.Common.External.arg_types
+                                        arg_names))
+        in
+        globals, (make_fun info ty v args x)
 ;;
 

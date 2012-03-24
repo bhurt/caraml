@@ -192,6 +192,22 @@ module InnerExpr = struct
                     | Common.Const.Unit -> LlvmIntf.unit_const ()
             in
             (res, start_block)
+        | CallOpt.InnerExpr.CallExtern(_, _, xtern, xs) ->
+            let xs = List.map
+                        (fun x -> get_name start_block names (snd x))
+                        xs
+            in
+            let fn_name = xtern.Common.External.real_name in
+            let fn_type = LlvmIntf.func_type
+                            (List.map LlvmIntf.llvm_of_type
+                                        xtern.Common.External.arg_types)
+                            (LlvmIntf.llvm_of_type
+                                    xtern.Common.External.return_type)
+            in
+            let f = LlvmIntf.declare_function fn_name fn_type in
+            let res = LlvmIntf.call start_block f xs in
+            (res, start_block)
+
     ;;
 
 end;;
@@ -234,6 +250,24 @@ module TailExpr = struct
                                             names (snd x)) xs
             in
             let f = LlvmIntf.lookup_function (Config.direct_name (snd f)) in
+            let res = LlvmIntf.call start_block f xs in
+            let _ = LlvmIntf.set_tail_call res in
+            let _ = LlvmIntf.ret start_block res in
+            ()
+        | CallOpt.TailExpr.TailCallExtern(_, _, xtern, xs) ->
+            let xs = List.map
+                        (fun x -> InnerExpr.get_name
+                                        start_block names (snd x))
+                        xs
+            in
+            let fn_name = xtern.Common.External.real_name in
+            let fn_type = LlvmIntf.func_type
+                            (List.map LlvmIntf.llvm_of_type
+                                xtern.Common.External.arg_types)
+                            (LlvmIntf.llvm_of_type
+                                xtern.Common.External.return_type)
+            in
+            let f = LlvmIntf.declare_function fn_name fn_type in
             let res = LlvmIntf.call start_block f xs in
             let _ = LlvmIntf.set_tail_call res in
             let _ = LlvmIntf.ret start_block res in

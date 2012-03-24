@@ -106,7 +106,9 @@ module Expr = struct
 end;;
 
 type t =
-    | Top of Info.t * Type.t * Common.Var.t option * Expr.t with sexp
+    | Top of Info.t * Type.t * Common.Var.t option * Expr.t
+    | Extern of Info.t * Common.Var.t * Common.External.t
+    with sexp
 ;;
 
 let convert names = function
@@ -117,5 +119,8 @@ let convert names = function
         let name = Common.Var.of_string v in
         let x = Expr.convert names x in
         (StringMap.add v name names), (Top(info, ty, Some name, x))
+    | Annot.Extern(info, v, x) ->
+        let name = Common.Var.of_string v in
+        (StringMap.add v name names), (Extern(info, name, x))
 ;;
 

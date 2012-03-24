@@ -37,6 +37,7 @@ end;;
 
 type t =
     | Top of Info.t * Type.t * Common.Var.t option * Expr.t
+    | Extern of Info.t * Common.Var.t * Common.External.t
 ;;
 
 val t_of_sexp__ : Sexplib.Sexp.t -> t;;

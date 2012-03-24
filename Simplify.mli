@@ -29,6 +29,8 @@ module Expr : sig
                                         * ((Type.t * Common.Var.t) list)
         | Var of Info.t * Type.t * Common.Var.t
         | Const of Info.t * Type.t * Common.Const.t
+        | CallExtern of Info.t * Type.t * Common.External.t
+                            * ((Type.t * Common.Var.t) list)
     ;;
 
 end;;

@@ -32,6 +32,8 @@ module InnerExpr : sig
                                     * ((Type.t * Common.Var.t) list)
         | Var of Info.t * Type.t * Common.Var.t
         | Const of Info.t * Type.t * Common.Const.t
+        | CallExtern of Info.t * Type.t * Common.External.t
+                            * ((Type.t * Common.Var.t) list)
     ;;
 
     val get_type : t -> Type.t;;
@@ -47,6 +49,8 @@ module TailExpr : sig
         | If of Info.t * Type.t * InnerExpr.t * t * t
         | TailCall of Info.t * Type.t * (Type.t * Common.Var.t)
                                         * ((Type.t * Common.Var.t) list)
+        | TailCallExtern of Info.t * Type.t * Common.External.t
+                            * ((Type.t * Common.Var.t) list)
 
     ;;
 

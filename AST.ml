@@ -36,7 +36,8 @@ module Expr = struct
 end;;
 
 type t =
-    Top of Info.t * (string option) * Expr.t
+    | Top of Info.t * (string option) * Expr.t
+    | Extern of Info.t * string * Common.External.t
     with sexp
 ;;
 

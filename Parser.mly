@@ -234,7 +234,7 @@ base_expr:
       VAR { AST.Expr.Var(info (), $1) }
     | BOOLEAN_VAL { AST.Expr.Const(info(), Common.Const.Boolean $1) }
     | INT_VAL { AST.Expr.Const(info(), Common.Const.Int $1) }
-    | UNIT { AST.Expr.Const(info(), Common.Const.Unit) }
+    | OPEN_PAREN CLOSE_PAREN { AST.Expr.Const(info(), Common.Const.Unit) }
     | OPEN_PAREN expr CLOSE_PAREN { $2 }
 ;
 

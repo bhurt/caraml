@@ -41,6 +41,7 @@ let keywords : Parser.token StringMap.t =
             "or", Parser.OR;
             "then", Parser.THEN;
             "true", Parser.BOOLEAN_VAL(true);
+            "unit", Parser.UNIT;
             "_", Parser.DISCARD ]
 ;;
 

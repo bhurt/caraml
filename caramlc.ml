@@ -48,42 +48,72 @@ let maybe_dump ocopt f x =
     | Some oc -> Sexplib.Sexp.output_hum oc (f x)
 ;;
 
+let handle_ast dumps state ast = 
+    let _ = maybe_dump dumps.ast_out AST.sexp_of_t ast in
+    let (annot_map, annot) = Annot.convert state.annot_map ast in
+    let _ = maybe_dump dumps.annot_out Annot.sexp_of_t annot in
+    let (alpha_map, alpha) = Alpha.convert state.alpha_map annot in
+    let _ = maybe_dump dumps.alpha_out Alpha.sexp_of_t alpha in
+    let (lambda_set, lambdas) =
+        LambdaLift.convert  state.lambda_set alpha
+    in
+    List.fold_left
+        (fun state lambda ->
+            maybe_dump dumps.lambda_out LambdaLift.sexp_of_t lambda;
+            let simplify = Simplify.convert lambda in
+            maybe_dump dumps.simplify_out Simplify.sexp_of_t simplify;
+            let (callopt_map, callopt) =
+                CallOpt.convert state.callopt_map simplify
+            in
+            maybe_dump dumps.callopt_out CallOpt.sexp_of_t callopt;
+            let init_fn = Assembly.assemble callopt in
+            {
+                annot_map = annot_map;
+                alpha_map = alpha_map;
+                lambda_set = lambda_set;
+                callopt_map = callopt_map;
+                init_fns = init_fn :: state.init_fns;
+            })
+        state
+        lambdas
+;;
+
 let rec parse_loop lexbuf dumps state =
     match Parser.top_level Lexer.token lexbuf with
     | AST.EOF -> state.init_fns
     | AST.SyntaxError -> raise Exit;
     | AST.Form ast ->
-        let _ = maybe_dump dumps.ast_out AST.sexp_of_t ast in
-        let (annot_map, annot) = Annot.convert state.annot_map ast in
-        let _ = maybe_dump dumps.annot_out Annot.sexp_of_t annot in
-        let (alpha_map, alpha) = Alpha.convert state.alpha_map annot in
-        let _ = maybe_dump dumps.alpha_out Alpha.sexp_of_t alpha in
-        let (lambda_set, lambdas) =
-            LambdaLift.convert  state.lambda_set alpha
-        in
-        let state =
-            List.fold_left
-                (fun state lambda ->
-                    maybe_dump dumps.lambda_out LambdaLift.sexp_of_t lambda;
-                    let simplify = Simplify.convert lambda in
-                    maybe_dump dumps.simplify_out Simplify.sexp_of_t simplify;
-                    let (callopt_map, callopt) =
-                        CallOpt.convert state.callopt_map simplify
-                    in
-                    maybe_dump dumps.callopt_out CallOpt.sexp_of_t callopt;
-                    let init_fn = Assembly.assemble callopt in
-                    {
-                        annot_map = annot_map;
-                        alpha_map = alpha_map;
-                        lambda_set = lambda_set;
-                        callopt_map = callopt_map;
-                        init_fns = init_fn :: state.init_fns;
-                    })
-                state
-                lambdas
-        in
+        let state = handle_ast dumps state ast in
         parse_loop lexbuf dumps state
 ;;
+
+let add_externs dumps state =
+    let no_position = {
+        Info.Position.file_name = "no file";
+        Info.Position.line_num = 0;
+        Info.Position.bol = 0;
+        Info.Position.col_num = 0;
+    } in
+    let info = no_position, no_position in
+    let state = handle_ast dumps state
+                (AST.Extern(info, "print_int", 
+                            {   Common.External.real_name = "print_int";
+                                Common.External.return_type =
+                                    Type.Base(Type.Unit);
+                                Common.External.arg_types = [
+                                    Type.Base(Type.Int) ] }))
+    in
+    let state = handle_ast dumps state
+                (AST.Extern(info, "print_newline", 
+                            {   Common.External.real_name = "print_newline";
+                                Common.External.return_type =
+                                    Type.Base(Type.Unit);
+                                Common.External.arg_types = [
+                                    Type.Base(Type.Unit) ] }))
+    in
+    state
+;;
+
 
 let maybe_out r ext name =
     if !r then
@@ -173,6 +203,7 @@ let parse_file name =
                 lexbuf.Lexing.lex_curr_p <-
                     {   lexbuf.Lexing.lex_curr_p with
                         Lexing.pos_fname = name };
+                let state = add_externs dumps state in
                 let init_fns = parse_loop lexbuf dumps state in
                 let _ = Assembly.create_main (List.rev init_fns) in
                 if !dump_llvm then

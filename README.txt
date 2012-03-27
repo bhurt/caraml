@@ -1,3 +1,6 @@
+CARAML: a toy language
+
+Caraml is a toy language in the ML/Ocaml/Haskell tradition.  It started as an implementation of the exercises in Benjamin Pierce's "Types and Programming Languages" book (http://www.amazon.com/Types-Programming-Languages-Benjamin-Pierce/dp/0262162091), but done "for real"- Lex & Yacc for parsing, and compiling to LLVM.
 
 caramlcc is the main driver.
 

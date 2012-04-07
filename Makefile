@@ -50,7 +50,7 @@ OCAMLFIND = ocamlfind
 PACKAGES =  camlp4,sexplib,sexplib.syntax,llvm,llvm.bitwriter,llvm.analysis
 
 SYNTAX = -syntax camlp4o,sexp
-OCAML_FLAGS = $(SYNTAX) -package $(PACKAGES)
+OCAML_FLAGS = $(SYNTAX) -package $(PACKAGES) -warn-error +A
 
 OCAMLYACC = ocamlyacc
 OCAMLLEX = ocamllex

@@ -1,9 +1,10 @@
 In vague order:
 
-- Not sure about my global handling- do I need to do a load or not?
-    Test this! (and fix Block.load_global as necessary)
-
 - Add general recurion (let rec), functions only!
+
+- Refactor LambdaLift into multiple passes.
+
+- Add internal let rec <defs> in <expr> w/binding
 
 - Add support for floats
 

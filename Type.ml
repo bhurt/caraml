@@ -80,4 +80,7 @@ let rec equals t1 t2 : bool =
     | _ -> false
 ;;
 
+let fn_type arg_tys rty =
+    List.fold_right (fun f x -> Arrow(f, x)) arg_tys rty
+;;
 

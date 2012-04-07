@@ -20,18 +20,19 @@ type base =
     | Int
     | Boolean
     | Unit
+    with sexp
 ;;
 
 type t =
     | Arrow of t * t
     | Tuple of t list
     | Base of base
+    with sexp
 ;;
-
-val t_of_sexp__ : Sexplib.Sexp.t -> t;;
-val t_of_sexp : Sexplib.Sexp.t -> t;;
-val sexp_of_t : t -> Sexplib.Sexp.t;;
 
 val pprint : int -> t -> unit;;
 
 val equals : t -> t -> bool;;
+
+val fn_type : t list -> t -> t;;
+

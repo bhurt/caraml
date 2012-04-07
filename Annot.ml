@@ -138,24 +138,28 @@ module Expr = struct
             -> info
     ;;
 
-    let rec convert type_env = function
+    let rec handle_lambda type_env args x =
+        let type_env =
+            List.fold_left
+                (fun m (t, a) ->
+                    match a with
+                    | Some v -> StringMap.add v t m
+                    | None -> m)
+                type_env
+                args
+        in
+        let x = convert type_env x in
+        let ty = get_type x in
+        let ty = List.fold_right
+                    (fun (x, _) y -> Type.Arrow(x,y))
+                    args ty
+        in
+        ty, x
+
+    and convert type_env = function
 
         | AST.Expr.Lambda(info, args, x) ->
-            let type_env =
-                List.fold_left
-                    (fun m (t, a) ->
-                        match a with
-                        | Some v -> StringMap.add v t m
-                        | None -> m)
-                    type_env
-                    args
-            in
-            let x = convert type_env x in
-            let ty = get_type x in
-            let ty = List.fold_right
-                        (fun (x, _) y -> Type.Arrow(x,y))
-                        args ty
-            in
+            let ty, x = handle_lambda type_env args x in
             Lambda(info, ty, args, x)
 
         | AST.Expr.Let(info, None, x, y) ->
@@ -260,6 +264,9 @@ end;;
 
 type t =
     | Top of Info.t * Type.t * (string option) * Expr.t
+    | TopRec of Info.t * ((Info.t * Type.t * string
+                            * ((Type.t * (string option)) list)
+                            * Expr.t) list)
     | Extern of Info.t * string * Common.External.t
     with sexp;;
 
@@ -273,6 +280,26 @@ let convert type_env = function
             | None -> type_env
         in
         type_env, Top(info, ty, v, x)
+    | AST.TopRec(info, fns) ->
+        let type_env =
+            List.fold_left
+                (fun type_env (_, n, args, rty, _) ->
+                    let fty = Type.fn_type (List.map fst args) rty in
+                    StringMap.add n fty type_env)
+                type_env
+                fns
+        in
+        let fns =
+            List.map
+                (fun (i, n, args, rty, x) ->
+                    let ty, x = Expr.handle_lambda type_env args x in
+                    let fty = Type.fn_type (List.map fst args) rty in
+                    let _ = unify i fty ty in
+                    (i, fty, n, args, x))
+                fns
+        in
+        type_env, TopRec(info, fns)
+                    
     | AST.Extern(info, v, extern) ->
         let type_env = StringMap.add v
             (List.fold_right (fun f x -> Type.Arrow(f, x))

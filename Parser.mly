@@ -34,7 +34,10 @@ let info () : Info.t =
 
 %token AND
 %token ARROW
+%token BOOL_AND
 %token BOOLEAN
+%token BOOL_NOT
+%token BOOL_OR
 %token CLOSE_PAREN
 %token COLON
 %token COMMA
@@ -56,11 +59,10 @@ let info () : Info.t =
 %token LET
 %token MINUS
 %token NEGATE
-%token NOT
 %token NOT_EQUALS
 %token OPEN_PAREN
-%token OR
 %token PLUS
+%token REC
 %token THEN
 %token TIMES
 %token UNIT
@@ -78,12 +80,27 @@ top_level:
             let i = info () in
             AST.Form(AST.Top(i, Some($2), AST.Expr.Lambda(i, List.rev $3, $5)))
         }
+    | LET REC rec_list DOUBLE_SEMI {
+            let i = info () in
+            AST.Form(AST.TopRec(i, List.rev $3))
+        }
     | error DOUBLE_SEMI {
             Printf.printf("Syntax Error.\n");
             AST.SyntaxError
         }
     | EOF { AST.EOF }
     | error EOF { Printf.printf("Syntax Error.\n"); AST.SyntaxError }
+;
+
+rec_list:
+      rec_defn { [ $1 ] }
+    | rec_list AND rec_defn { $3 :: $1 }
+;
+
+rec_defn:
+      VAR arglist COLON type_expr EQUALS expr {
+            info (), $1, List.rev $2, $4, $6
+        }
 ;
 
 var_or_discard:
@@ -160,21 +177,21 @@ tuple_list_expr:
 ;
 
 bool_expr:
-      bool_expr OR and_expr {
+      bool_expr BOOL_OR and_expr {
             AST.Expr.BinOp(info (), $1, Common.BinOp.Or, $3)
         }
     | and_expr { $1 }
 ;
 
 and_expr:
-      and_expr AND not_expr {
+      and_expr BOOL_AND not_expr {
             AST.Expr.BinOp(info (), $1, Common.BinOp.And, $3)
         }
     | not_expr { $1 }
 ;
 
 not_expr:
-      NOT not_expr {
+      BOOL_NOT not_expr {
             AST.Expr.UnOp(info (), Common.UnOp.Not, $2)
         }
     | comp_expr { $1 }

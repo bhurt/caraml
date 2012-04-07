@@ -162,6 +162,7 @@ end;;
 type t =
     | TopFun of Info.t * Type.t * Common.Var.t * Common.Arg.t list * TailExpr.t
     | TopVar of Info.t * Type.t * Common.Var.t * InnerExpr.t
+    | TopForward of Info.t * Type.t * Common.Var.t * int
     | TopExpr of Info.t * Type.t * InnerExpr.t
     with sexp
 ;;
@@ -175,6 +176,10 @@ let convert globals = function
     | Simplify.TopVar(info, ty, v, x) ->
         let x = InnerExpr.convert globals x in
         globals, TopVar(info, ty, v, x)
+
+    | Simplify.TopForward(info, ty, n, nargs) ->
+        (Common.Var.Map.add n nargs globals),
+        TopForward(info, ty, n, nargs)
 
     | Simplify.TopExpr(info, ty, x) ->
         let x = InnerExpr.convert globals x in

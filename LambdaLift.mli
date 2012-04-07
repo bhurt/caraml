@@ -37,12 +37,10 @@ end;;
 type t =
     | TopFun of Info.t * Type.t * Common.Var.t * Common.Arg.t list * Expr.t
     | TopVar of Info.t * Type.t * Common.Var.t * Expr.t
+    | TopForward of Info.t * Type.t * Common.Var.t * int
     | TopExpr of Info.t * Type.t * Expr.t
+    with sexp
 ;;
-
-val t_of_sexp__ : Sexplib.Sexp.t -> t;;
-val t_of_sexp : Sexplib.Sexp.t -> t;;
-val sexp_of_t : t -> Sexplib.Sexp.t;;
 
 val convert : Common.Var.Set.t -> Alpha.t -> Common.Var.Set.t * t list;;
 

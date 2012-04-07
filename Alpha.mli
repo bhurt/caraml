@@ -31,18 +31,18 @@ module Expr : sig
         | Apply of Info.t * Type.t * t * t
         | Var of Info.t * Type.t * Common.Var.t
         | Const of Info.t * Type.t * Common.Const.t
+        with sexp
     ;;
 
 end;;
 
 type t =
     | Top of Info.t * Type.t * Common.Var.t option * Expr.t
+    | TopRec of Info.t * ((Info.t * Type.t * Common.Var.t
+                            * (Common.Arg.t list) * Expr.t) list)
     | Extern of Info.t * Common.Var.t * Common.External.t
+    with sexp
 ;;
-
-val t_of_sexp__ : Sexplib.Sexp.t -> t;;
-val t_of_sexp : Sexplib.Sexp.t -> t;;
-val sexp_of_t : t -> Sexplib.Sexp.t;;
 
 val convert :
     Common.Var.t StringMap.t -> Annot.t -> (Common.Var.t StringMap.t * t)

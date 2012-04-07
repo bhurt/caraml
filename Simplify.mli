@@ -31,6 +31,7 @@ module Expr : sig
         | Const of Info.t * Type.t * Common.Const.t
         | CallExtern of Info.t * Type.t * Common.External.t
                             * ((Type.t * Common.Var.t) list)
+        with sexp
     ;;
 
 end;;
@@ -38,12 +39,10 @@ end;;
 type t =
     | TopFun of Info.t * Type.t * Common.Var.t * Common.Arg.t list * Expr.t
     | TopVar of Info.t * Type.t * Common.Var.t * Expr.t
+    | TopForward of Info.t * Type.t * Common.Var.t * int
     | TopExpr of Info.t * Type.t * Expr.t
+    with sexp
 ;;
-
-val t_of_sexp__ : Sexplib.Sexp.t -> t;;
-val t_of_sexp : Sexplib.Sexp.t -> t;;
-val sexp_of_t : t -> Sexplib.Sexp.t;;
 
 val convert : LambdaLift.t -> t;;
 

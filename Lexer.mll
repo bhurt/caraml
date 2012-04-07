@@ -37,8 +37,7 @@ let keywords : Parser.token StringMap.t =
             "int", Parser.INT;
             "lambda", Parser.LAMBDA;
             "let", Parser.LET;
-            "not", Parser.NOT;
-            "or", Parser.OR;
+            "not", Parser.BOOL_NOT;
             "then", Parser.THEN;
             "true", Parser.BOOLEAN_VAL(true);
             "unit", Parser.UNIT;
@@ -69,7 +68,7 @@ rule token = parse
         } 
 
     | (uppercase | lowercase) identchar* { keyword lexbuf }
-    | "&&" { Parser.AND }
+    | "&&" { Parser.BOOL_AND }
     | "->" { Parser.ARROW }
     | ")" { Parser.CLOSE_PAREN }
     | ":" { Parser.COLON }
@@ -87,11 +86,11 @@ rule token = parse
     | "<" { Parser.LESS_THAN }
     | "-" { Parser.MINUS }
     | "~" { Parser.NEGATE }
-    | "!" { Parser.NOT }
+    | "!" { Parser.BOOL_NOT }
     | "!=" { Parser.NOT_EQUALS }
     | "/=" { Parser.NOT_EQUALS }
     | "(" { Parser.OPEN_PAREN }
-    | "||" { Parser.OR }
+    | "||" { Parser.BOOL_OR }
     | "+" { Parser.PLUS }
     | "*" { Parser.TIMES }
 

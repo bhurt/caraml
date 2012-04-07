@@ -107,6 +107,8 @@ end;;
 
 type t =
     | Top of Info.t * Type.t * Common.Var.t option * Expr.t
+    | TopRec of Info.t * ((Info.t * Type.t * Common.Var.t
+                            * (Common.Arg.t list) * Expr.t) list)
     | Extern of Info.t * Common.Var.t * Common.External.t
     with sexp
 ;;
@@ -119,6 +121,26 @@ let convert names = function
         let name = Common.Var.of_string v in
         let x = Expr.convert names x in
         (StringMap.add v name names), (Top(info, ty, Some name, x))
+    | Annot.TopRec(info, fns) ->
+        let names =
+            List.fold_left
+                (fun names (_, _, n, _, _) ->
+                    let v = Common.Var.of_string n in
+                    StringMap.add n v names)
+                names
+                fns
+        in
+        let fns =
+            List.map
+                (fun (i, ty, n, args, x) ->
+                    let n = StringMap.find n names in
+                    let names = List.fold_left Expr.rename_arg names args in
+                    let args = List.map (Expr.map_arg names) args in
+                    let x = Expr.convert names x in
+                    (i, ty, n, args, x))
+                fns
+        in
+        names, TopRec(info, fns)
     | Annot.Extern(info, v, x) ->
         let name = Common.Var.of_string v in
         (StringMap.add v name names), (Extern(info, name, x))

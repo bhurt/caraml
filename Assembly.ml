@@ -351,7 +351,7 @@ let make_init_fn n args x =
     let _ = LlvmIntf.store b ~ptr:g ~value:p in
     let _ = LlvmIntf.ret_void b in
     let _ = LlvmIntf.end_function () in
-    init_name
+    Some(init_name)
 ;;
 
 let make_init_var ty n x =
@@ -369,7 +369,7 @@ let make_init_var ty n x =
     let _ = LlvmIntf.store b ~ptr ~value:v in
     let _ = LlvmIntf.ret_void b in
     let _ = LlvmIntf.end_function () in
-    init_name
+    Some(init_name)
 ;;
 
 let make_static x =
@@ -382,7 +382,29 @@ let make_static x =
     in
     let _ = LlvmIntf.ret_void b in
     let _ = LlvmIntf.end_function () in
-    init_name
+    Some(init_name)
+;;
+
+let split_args ty nargs =
+    let rec loop t n ty =
+        if (n == 0) then
+            (List.rev t), ty
+        else
+            match ty with
+            | Type.Arrow(x, y) -> loop (x :: t) (n - 1) y
+            | _ -> assert false
+    in
+    loop [] nargs ty
+;;
+
+let make_forward ty n nargs =
+    let name = Common.Var.to_string n in
+    let arg_tys, rty = split_args ty nargs in
+    let llty = LlvmIntf.func_type (List.map LlvmIntf.llvm_of_type arg_tys)
+                    (LlvmIntf.llvm_of_type rty)
+    in
+    let _ = LlvmIntf.declare_function name llty in
+    None
 ;;
 
 let assemble = function
@@ -391,6 +413,7 @@ let assemble = function
             let _ = make_apply_fn n args x in
             make_init_fn n args x
     | CallOpt.TopVar(_, ty, n, x) -> make_init_var ty n x
+    | CallOpt.TopForward(_, ty, n, nargs) -> make_forward ty n nargs
     | CallOpt.TopExpr(_, _, x) -> make_static x
 ;;
 
@@ -403,10 +426,11 @@ let create_main init_fns =
     let _ = LlvmIntf.void_call block gc_init [] in
     let rec loop = function
         | [] -> ()
-        | f :: fns ->
+        | Some(f) :: fns ->
             let g = LlvmIntf.lookup_function f in
             let _ = LlvmIntf.void_call block g [] in
             loop fns
+        | None :: fns -> loop fns
     in
     let () = loop init_fns in
     let _ = LlvmIntf.ret_void block in

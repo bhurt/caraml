@@ -293,6 +293,7 @@ end;;
 type t =
     | TopFun of Info.t * Type.t * Common.Var.t * (Common.Arg.t list) * Expr.t
     | TopVar of Info.t * Type.t * Common.Var.t * Expr.t
+    | TopForward of Info.t * Type.t * Common.Var.t * int
     | TopExpr of Info.t * Type.t * Expr.t
     with sexp
 ;;
@@ -384,6 +385,37 @@ let rec convert globals = function
                 (TopFun(info, ty, name, args, x)) :: fns)
             [ TopExpr(info, ty, x) ]
             lifted
+
+    | Alpha.TopRec(info, fns) ->
+        let globals =
+            List.fold_left
+                (fun globals (_, _, n, _, _) ->
+                    Common.Var.Set.add n globals)
+                globals
+                fns
+        in
+        let lifted =
+            List.fold_right
+                (fun (i, ty, n, args, x) lifted ->
+                    let ts, x = Expr.convert globals [] x in
+                    List.fold_left
+                        (fun fns (name, info, ty, args, x) ->
+                            List.append (make_fun info ty name args x) fns)
+                        (List.append
+                            (make_fun info ty n args x)
+                            lifted)
+                        ts)
+                fns
+                []
+        in
+        let lifted =
+            List.fold_right
+                (fun (i, ty, n, args, _) lifted ->
+                    TopForward(i, ty, n, List.length args) :: lifted)
+                fns
+                lifted
+        in
+        globals, lifted
 
     | Alpha.Extern(info, v, extern) ->
         let globals = Common.Var.Set.add v globals in

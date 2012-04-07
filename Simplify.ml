@@ -144,6 +144,7 @@ end;;
 type t =
     | TopFun of Info.t * Type.t * Common.Var.t * Common.Arg.t list * Expr.t
     | TopVar of Info.t * Type.t * Common.Var.t * Expr.t
+    | TopForward of Info.t * Type.t * Common.Var.t * int
     | TopExpr of Info.t * Type.t * Expr.t
     with sexp
 ;;
@@ -153,6 +154,8 @@ let convert = function
         TopFun(info, ty, v, args, Expr.convert x)
     | LambdaLift.TopVar(info, ty, v, x) ->
         TopVar(info, ty, v, Expr.convert x)
+    | LambdaLift.TopForward(info, ty, n, nargs) ->
+        TopForward(info, ty, n, nargs)
     | LambdaLift.TopExpr(info, ty, x) ->
         TopExpr(info, ty, Expr.convert x)
 ;;

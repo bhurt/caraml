@@ -37,6 +37,8 @@ end;;
 
 type t =
     | Top of Info.t * (string option) * Expr.t
+    | TopRec of Info.t * ((Info.t * string * ((Type.t * (string option)) list)
+                            * Type.t * Expr.t) list)
     | Extern of Info.t * string * Common.External.t
     with sexp
 ;;

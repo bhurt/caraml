@@ -39,7 +39,7 @@ type state_t = {
     alpha_map : Common.Var.t Alpha.StringMap.t;
     lambda_set : Common.Var.Set.t;
     callopt_map : int Common.Var.Map.t;
-    init_fns : string list;
+    init_fns : string option list;
 };;
 
 let maybe_dump ocopt f x =

@@ -29,22 +29,18 @@ module Expr : sig
         | Apply of Info.t * t * t
         | Var of Info.t * string
         | Const of Info.t * Common.Const.t
+        with sexp
     ;;
-
-    val t_of_sexp__ : Sexplib.Sexp.t -> t;;
-    val t_of_sexp : Sexplib.Sexp.t -> t;;
-    val sexp_of_t : t -> Sexplib.Sexp.t;;
 
 end;;
 
 type t =
     | Top of Info.t * (string option) * Expr.t
+    | TopRec of Info.t * ((Info.t * string * ((Type.t * (string option)) list)
+                            * Type.t * Expr.t) list)
     | Extern of Info.t * string * Common.External.t
+    with sexp
 ;;
-
-val t_of_sexp__ : Sexplib.Sexp.t -> t;;
-val t_of_sexp : Sexplib.Sexp.t -> t;;
-val sexp_of_t : t -> Sexplib.Sexp.t;;
 
 type parse_result =
     | Form of t

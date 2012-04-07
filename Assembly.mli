@@ -16,7 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 *)
 
-val assemble : CallOpt.t -> string;;
+val assemble : CallOpt.t -> string option;;
 
-val create_main : string list -> unit;;
+val create_main : string option list -> unit;;
 

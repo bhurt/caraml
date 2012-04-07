@@ -34,6 +34,7 @@ module InnerExpr : sig
         | Const of Info.t * Type.t * Common.Const.t
         | CallExtern of Info.t * Type.t * Common.External.t
                             * ((Type.t * Common.Var.t) list)
+        with sexp
     ;;
 
     val get_type : t -> Type.t;;
@@ -51,6 +52,7 @@ module TailExpr : sig
                                         * ((Type.t * Common.Var.t) list)
         | TailCallExtern of Info.t * Type.t * Common.External.t
                             * ((Type.t * Common.Var.t) list)
+        with sexp
 
     ;;
 
@@ -61,12 +63,11 @@ end;;
 type t =
     | TopFun of Info.t * Type.t * Common.Var.t * Common.Arg.t list * TailExpr.t
     | TopVar of Info.t * Type.t * Common.Var.t * InnerExpr.t
+    | TopForward of Info.t * Type.t * Common.Var.t * int
     | TopExpr of Info.t * Type.t * InnerExpr.t
+    with sexp
 ;;
 
-val t_of_sexp__ : Sexplib.Sexp.t -> t;;
-val t_of_sexp : Sexplib.Sexp.t -> t;;
-val sexp_of_t : t -> Sexplib.Sexp.t;;
 val convert :
     int Common.Var.Map.t -> Simplify.t -> (int Common.Var.Map.t * t)
 ;;

@@ -24,6 +24,15 @@ let info () : Info.t =
         (Parsing.symbol_end_pos ())
 ;;
 
+let parse_error s =
+    let start = Parsing.symbol_start_pos () in
+    let stop = Parsing.symbol_end_pos () in
+    Printf.printf "%s: %s:%d.%d-%d.%d\n" s start.Lexing.pos_fname
+        start.Lexing.pos_lnum start.Lexing.pos_cnum stop.Lexing.pos_lnum
+        stop.Lexing.pos_cnum;
+    ()
+;;
+
 %}
 
 %token <string> VAR

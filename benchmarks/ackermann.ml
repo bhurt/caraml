@@ -8,4 +8,4 @@ let rec ackermann m n =
         ackermann (m - 1) (ackermann m (n - 1))
 ;;
 
-Printf.printf "%d\n" (ackermann 3 12);;
+Printf.printf "%d\n" (ackermann 3 14);;

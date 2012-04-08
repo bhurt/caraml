@@ -398,12 +398,15 @@ let split_args ty nargs =
 ;;
 
 let make_forward ty n nargs =
-    let name = Common.Var.to_string n in
+    (*
+    Is this not needed?
+    let name = Config.direct_name n in
     let arg_tys, rty = split_args ty nargs in
     let llty = LlvmIntf.func_type (List.map LlvmIntf.llvm_of_type arg_tys)
                     (LlvmIntf.llvm_of_type rty)
     in
-    let _ = LlvmIntf.declare_function name llty in
+    let x = LlvmIntf.declare_function name llty in
+    *)
     None
 ;;
 

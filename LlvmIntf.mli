@@ -33,6 +33,7 @@ val dump_module : unit -> unit;;
 val lookup_global : string -> Llvm.llvalue;;
 val lookup_function : string -> Llvm.llvalue;;
 val define_global : string -> Llvm.llvalue -> Llvm.llvalue;;
+val declare_global : string -> Llvm.lltype -> Llvm.llvalue;;
 val declare_function : string -> Llvm.lltype -> Llvm.llvalue;;
 val app_table_type : unit -> Llvm.lltype;;
 val write_bitcode_file : string -> bool;;

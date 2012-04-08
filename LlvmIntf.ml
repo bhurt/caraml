@@ -107,6 +107,8 @@ let lookup_function name =
 
 let define_global name value = Llvm.define_global name value (mdl ());;
 
+let declare_global name typ = Llvm.declare_global typ name (mdl ());;
+
 let declare_function name typ =
     Llvm.declare_function name typ (mdl ())
 ;;

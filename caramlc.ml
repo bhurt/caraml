@@ -45,7 +45,14 @@ type state_t = {
 let maybe_dump ocopt f x =
     match ocopt with
     | None -> ()
-    | Some oc -> Sexplib.Sexp.output_hum oc (f x)
+    | Some oc ->
+        begin
+            Sexplib.Sexp.output_hum oc (f x);
+            output_char oc '\n';
+            output_char oc '\n';
+            flush oc;
+            ()
+        end
 ;;
 
 let handle_ast dumps state ast = 
@@ -258,6 +265,7 @@ try
     let _ = Arg.parse arg_spec parse_file doc in ()
 with
     | Exit -> ()
-    | a -> Printf.printf "Unexpected exception!\n%!"
+    | a -> Printf.printf "Unexpected exception! %s\n%!"
+                        (Printexc.to_string a)
 ;;
 

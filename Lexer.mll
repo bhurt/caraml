@@ -38,6 +38,7 @@ let keywords : Parser.token StringMap.t =
             "lambda", Parser.LAMBDA;
             "let", Parser.LET;
             "not", Parser.BOOL_NOT;
+            "rec", Parser.REC;
             "then", Parser.THEN;
             "true", Parser.BOOLEAN_VAL(true);
             "unit", Parser.UNIT;

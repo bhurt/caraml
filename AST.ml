@@ -19,10 +19,15 @@
 open Sexplib.Conv;;
 
 module Expr = struct
-    type t =
-        | Lambda of Info.t * ((Type.t * (string option)) list) * t
+
+    type arg = Type.t * (string option) with sexp;;
+
+    type lambda = Info.t * string * (arg list) * Type.t * t
+    and t =
+        | Lambda of Info.t * (arg list) * t
         | Let of Info.t * (string option) * t * t
         | LetTuple of Info.t * (string option list) * t * t
+        | LetRec of Info.t * (lambda list)
         | If of Info.t * t * t * t
         | Tuple of Info.t * (t list)
         | BinOp of Info.t * t * Common.BinOp.t * t
@@ -37,8 +42,7 @@ end;;
 
 type t =
     | Top of Info.t * (string option) * Expr.t
-    | TopRec of Info.t * ((Info.t * string * ((Type.t * (string option)) list)
-                            * Type.t * Expr.t) list)
+    | TopRec of Info.t * (Expr.lambda list)
     | Extern of Info.t * string * Common.External.t
     with sexp
 ;;

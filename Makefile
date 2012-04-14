@@ -15,6 +15,8 @@
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
+# Compiling with VERBOSE defined shows the actual commands.
+
 # The ordering of MLFILES is actually important- wrong orders cause
 # link errors.
 MLFILES = \
@@ -65,28 +67,67 @@ OCAMLOPT_LIBS =
 
 all: caramlc caraml.bc
 
+ifndef VERBOSE
+
+# This turns echoing of all commands off
+.SILENT:
+
+# Testing MAKE_RESTARTS prevents the info message from being duplicated
+# after we include the dependency files below.
+ifndef MAKE_RESTARTS
+
+# This just prints off a message to remind me of how to see the commands.
+$(info Compiling in normal mode- run 'make VERBOSE=1' to see the commands)
+endif
+
+endif
+
 caramlc: $(CMXFILES)
+ifndef VERBOSE
+	echo Compiling $@
+endif
 	$(OCAMLOPT) -linkpkg -o $@ $(CMXFILES)
 
 make_apply: Utils.cmx Type.cmx Common.cmx Config.cmx LlvmIntf.cmx LlvmUtils.cmx make_apply.cmx
+ifndef VERBOSE
+	echo Linking $@
+endif
 	$(OCAMLOPT) -linkpkg -o $@ $^
 
 $(CMIFILES): %.cmi: %.mli
+ifndef VERBOSE
+	echo Compiling $@
+endif
 	$(OCAMLC) -c $<
 
 $(CMOFILES): %.cmo: %.ml %.cmi
+ifndef VERBOSE
+	echo Compiling $@
+endif
 	$(OCAMLC) -c $<
 
 $(CMXFILES): %.cmx: %.ml %.cmi
+ifndef VERBOSE
+	echo Compiling $@
+endif
 	$(OCAMLOPT) -c $<
 
 $(OFILES): %.o: %.ml %.cmi
+ifndef VERBOSE
+	echo Compiling $@
+endif
 	$(OCAMLOPT) -c $<
 
 Parser.ml Parser.mli: Parser.mly
+ifndef VERBOSE
+	echo Generating $@
+endif
 	$(OCAMLYACC) -v $<
 
 Lexer.ml: Lexer.mll
+ifndef VERBOSE
+	echo Generating $@
+endif
 	$(OCAMLLEX) $<
 
 repl:
@@ -94,21 +135,36 @@ repl:
 	@echo "Remember to #use \"topfind\";; when starting the repl!"
 
 %.bc: %.c
+ifndef VERBOSE
+	echo Compiling $@
+endif
 	clang -c -emit-llvm -o $@ $<
 
 caraml_apply.bc: make_apply
+ifndef VERBOSE
+	echo Generating $@
+endif
 	./make_apply
 
 caraml.bc: gc.bc builtins.bc caraml_apply.bc
+ifndef VERBOSE
+	echo Linking $@
+endif
 	llvm-ld -r -o $@ $^
 
 -include $(DEPFILES)
 
 $(DEPFILES): %.dep: %.ml %.mli Makefile
+ifndef VERBOSE
+	echo Generating dependencies for $<
+endif
 	$(OCAMLDEP) $(@:.dep=.ml) $(@:.dep=.mli) > $@
 
 .PHONY: clean
 clean:
+ifndef VERBOSE
+	echo Cleaning up
+endif
 	rm -f $(CMIFILES) 
 	rm -f $(CMOFILES) 
 	rm -f $(CMXFILES)

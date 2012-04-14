@@ -45,6 +45,8 @@ CMOFILES = $(MLFILES:.ml=.cmo)
 CMXFILES = $(MLFILES:.ml=.cmx)
 OFILES = $(MLFILES:.ml=.o)
 
+DEPFILES = $(MLFILES:.ml=.dep)
+
 OCAMLFIND = ocamlfind
 
 PACKAGES =  camlp4,sexplib,sexplib.syntax,llvm,llvm.bitwriter,llvm.analysis
@@ -100,10 +102,10 @@ caraml_apply.bc: make_apply
 caraml.bc: gc.bc builtins.bc caraml_apply.bc
 	llvm-ld -r -o $@ $^
 
--include make.deps
+-include $(DEPFILES)
 
-make.deps: Makefile $(MLFILES) $(MLIFILES)
-	$(OCAMLDEP) $(MLFILES) $(MLIFILES) > $@
+$(DEPFILES): %.dep: %.ml %.mli Makefile
+	$(OCAMLDEP) $(@:.dep=.ml) $(@:.dep=.mli) > $@
 
 .PHONY: clean
 clean:
@@ -111,7 +113,8 @@ clean:
 	rm -f $(CMOFILES) 
 	rm -f $(CMXFILES)
 	rm -f $(OFILES)
-	rm -f Lexer.ml Parser.ml Parser.mli make.deps repl
+	rm -f $(DEPFILES)
+	rm -f Lexer.ml Parser.ml Parser.mli repl
 	rm -f make_apply caraml_apply.o caraml_apply.bc gc.bc builtins.bc caraml.bc
 
 realclean: clean

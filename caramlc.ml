@@ -19,6 +19,8 @@
 let dump_ast = ref false;;
 let dump_annot = ref false;;
 let dump_alpha = ref false;;
+let dump_lambdaconv = ref false;;
+let dump_freebind = ref false;;
 let dump_lambda_lift = ref false;;
 let dump_simplify = ref false;;
 let dump_callopt = ref false;;
@@ -29,6 +31,8 @@ type dumps_t = {
     ast_out : out_channel option;
     annot_out : out_channel option;
     alpha_out : out_channel option;
+    lambdaconv_out : out_channel option;
+    freebind_out : out_channel option;
     lambda_out : out_channel option;
     simplify_out : out_channel option;
     callopt_out : out_channel option;
@@ -61,9 +65,11 @@ let handle_ast dumps state ast =
     let _ = maybe_dump dumps.annot_out Annot.sexp_of_t annot in
     let (alpha_map, alpha) = Alpha.convert state.alpha_map annot in
     let _ = maybe_dump dumps.alpha_out Alpha.sexp_of_t alpha in
-    let (lambda_set, lambdas) =
-        LambdaLift.convert  state.lambda_set alpha
-    in
+    let lconv = LambdaConv.convert alpha in
+    let _ = maybe_dump dumps.lambdaconv_out LambdaConv.sexp_of_t lconv in
+    let (lambda_set, fbind) = FreeBind.convert state.lambda_set lconv in
+    let _ = maybe_dump dumps.freebind_out LambdaConv.sexp_of_t fbind in
+    let lambdas = LambdaLift.convert fbind in
     List.fold_left
         (fun state lambda ->
             maybe_dump dumps.lambda_out LambdaLift.sexp_of_t lambda;
@@ -133,6 +139,8 @@ let make_dumps name = {
     ast_out = maybe_out dump_ast ".ast.sexp" name;
     annot_out = maybe_out dump_annot ".annot.sexp" name;
     alpha_out = maybe_out dump_alpha ".alpha.sexp" name;
+    lambdaconv_out = maybe_out dump_lambdaconv ".lambdaconv.sexp" name;
+    freebind_out = maybe_out dump_freebind ".freebind.sexp" name;
     lambda_out = maybe_out dump_lambda_lift ".lambda-lift.sexp" name;
     simplify_out = maybe_out dump_simplify ".simplify.sexp" name;
     callopt_out = maybe_out dump_callopt ".callopt.sexp" name;
@@ -149,6 +157,8 @@ let close_dumps dumps =
     maybe_close dumps.ast_out;
     maybe_close dumps.annot_out;
     maybe_close dumps.alpha_out;
+    maybe_close dumps.lambdaconv_out;
+    maybe_close dumps.freebind_out;
     maybe_close dumps.lambda_out;
     maybe_close dumps.simplify_out;
     maybe_close dumps.callopt_out;
@@ -240,6 +250,8 @@ let arg_spec = [
     "--dump-ast", Arg.Set dump_ast, "Dump the AST.";
     "--dump-annot", Arg.Set dump_annot, "Dump the type-annotated AST.";
     "--dump-alpha", Arg.Set dump_alpha, "Dump the alpha-renamed AST.";
+    "--dump-lambdaconv", Arg.Set dump_lambdaconv, "Dump the lambda converted AST.";
+    "--dump-freebind", Arg.Set dump_freebind, "Dump the bound free vars AST.";
     "--dump-lambda-lifted", Arg.Set dump_lambda_lift, 
         "Dump the lambda-lifted AST.";
     "--dump-simplify", Arg.Set dump_simplify, "Dump the simplified AST.";
@@ -250,6 +262,8 @@ let arg_spec = [
                         dump_ast := true;
                         dump_annot := true;
                         dump_alpha := true;
+                        dump_lambdaconv := true;
+                        dump_freebind := true;
                         dump_lambda_lift := true;
                         dump_simplify := true;
                         dump_callopt := true;

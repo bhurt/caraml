@@ -31,6 +31,8 @@ MLFILES = \
     Lexer.ml \
     Annot.ml \
     Alpha.ml \
+    LambdaConv.ml \
+    FreeBind.ml \
     LambdaLift.ml \
     Simplify.ml \
     CallOpt.ml \

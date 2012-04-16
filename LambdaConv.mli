@@ -18,9 +18,12 @@
 
 module Expr : sig
 
-    type t =
+    type lambda = Info.t * Type.t * Common.Var.t * (Common.Arg.t list) * t
+    and t =
         | Let of Info.t * Type.t * Common.Arg.t * t * t
         | LetTuple of Info.t * Type.t * Common.Arg.t list * t * t
+        | LetFn of Info.t * Type.t * lambda * t
+        | LetRec of Info.t * Type.t * (lambda list) * t
         | If of Info.t * Type.t * t * t * t
         | Tuple of Info.t * Type.t * t list
         | BinOp of Info.t * Type.t * t * Common.BinOp.t * t
@@ -28,19 +31,17 @@ module Expr : sig
         | Apply of Info.t * Type.t * t * t
         | Var of Info.t * Type.t * Common.Var.t
         | Const of Info.t * Type.t * Common.Const.t
-        | CallExtern of Info.t * Type.t * Common.External.t
-                    * ((Type.t * Common.Var.t) list)
+        with sexp
     ;;
 
 end;;
 
 type t =
-    | TopFun of Info.t * Type.t * Common.Var.t * Common.Arg.t list * Expr.t
-    | TopVar of Info.t * Type.t * Common.Var.t * Expr.t
-    | TopForward of Info.t * Type.t * Common.Var.t * int
-    | TopExpr of Info.t * Type.t * Expr.t
+    | Top of Info.t * Type.t * Common.Var.t option * Expr.t
+    | TopFn of Info.t * Type.t * Expr.lambda
+    | TopRec of Info.t * (Expr.lambda list)
+    | Extern of Info.t * Common.Var.t * Common.External.t
     with sexp
 ;;
 
-val convert : LambdaConv.t -> t list;;
-
+val convert : Alpha.t -> t;;

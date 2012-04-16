@@ -152,3 +152,12 @@ let rec freduce fs init =
     | g :: gs -> freduce gs (g init)
 ;;
 
+let map_accum f init xs =
+    let rec loop acc ys = function
+        | [] -> acc, List.rev ys
+        | x :: xs ->
+            let acc, y = f acc x in
+            loop acc (y :: ys) xs
+    in
+    loop init [] xs
+;;

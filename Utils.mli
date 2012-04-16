@@ -30,4 +30,4 @@ val mapi : ?start:int -> ?step:int -> (int -> 'a -> 'b) -> 'a list -> 'b list;;
 val fold_lefti : ?start:int -> ?step:int
                     -> (int -> 'a -> 'b -> 'a) -> 'a -> 'b list -> 'a;;
 val freduce : ('a -> 'a) list -> 'a -> 'a;;
-
+val map_accum : ('a -> 'b -> 'a * 'c) -> 'a -> ('b list) -> ('a * ('c list));;

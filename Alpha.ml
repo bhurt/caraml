@@ -22,10 +22,12 @@ module StringMap = Map.Make(String);;
 
 module Expr = struct
 
-    type t =
+    type lambda = Info.t * Type.t * Common.Var.t * (Common.Arg.t list) * t
+    and t =
         | Lambda of Info.t * Type.t * Common.Arg.t list * t
         | Let of Info.t * Type.t * Common.Arg.t * t * t
         | LetTuple of Info.t * Type.t * Common.Arg.t list * t * t
+        | LetRec of Info.t * Type.t * (lambda list) * t
         | If of Info.t * Type.t * t * t * t
         | Tuple of Info.t * Type.t * t list
         | BinOp of Info.t * Type.t * t * Common.BinOp.t * t
@@ -72,6 +74,11 @@ module Expr = struct
             let y = convert names y in
             LetTuple(info, ty, args, x, y)
 
+        | Annot.Expr.LetRec(info, ty, fns, x) ->
+            let names, fns = convert_lambdas names fns in
+            let x = convert names x in
+            LetRec(info, ty, fns, x)
+
         | Annot.Expr.If(info, ty, x, y, z) ->
             let x = convert names x in
             let y = convert names y in
@@ -101,14 +108,34 @@ module Expr = struct
 
         | Annot.Expr.Const(info, ty, c) ->
             Const(info, ty, c)
+
+    and convert_lambdas names fns =
+        let names =
+            List.fold_left
+                (fun names (_, _, n, _, _) ->
+                    let v = Common.Var.of_string n in
+                    StringMap.add n v names)
+                names
+                fns
+        in
+        let fns =
+            List.map
+                (fun (i, ty, n, args, x) ->
+                    let n = StringMap.find n names in
+                    let names = List.fold_left rename_arg names args in
+                    let args = List.map (map_arg names) args in
+                    let x = convert names x in
+                    (i, ty, n, args, x))
+                fns
+        in
+        names, fns
     ;;
         
 end;;
 
 type t =
     | Top of Info.t * Type.t * Common.Var.t option * Expr.t
-    | TopRec of Info.t * ((Info.t * Type.t * Common.Var.t
-                            * (Common.Arg.t list) * Expr.t) list)
+    | TopRec of Info.t * (Expr.lambda list)
     | Extern of Info.t * Common.Var.t * Common.External.t
     with sexp
 ;;
@@ -122,24 +149,7 @@ let convert names = function
         let x = Expr.convert names x in
         (StringMap.add v name names), (Top(info, ty, Some name, x))
     | Annot.TopRec(info, fns) ->
-        let names =
-            List.fold_left
-                (fun names (_, _, n, _, _) ->
-                    let v = Common.Var.of_string n in
-                    StringMap.add n v names)
-                names
-                fns
-        in
-        let fns =
-            List.map
-                (fun (i, ty, n, args, x) ->
-                    let n = StringMap.find n names in
-                    let names = List.fold_left Expr.rename_arg names args in
-                    let args = List.map (Expr.map_arg names) args in
-                    let x = Expr.convert names x in
-                    (i, ty, n, args, x))
-                fns
-        in
+        let names, fns = Expr.convert_lambdas names fns in
         names, TopRec(info, fns)
     | Annot.Extern(info, v, x) ->
         let name = Common.Var.of_string v in

@@ -27,7 +27,7 @@ module Expr = struct
         | Lambda of Info.t * (arg list) * t
         | Let of Info.t * (string option) * t * t
         | LetTuple of Info.t * (string option list) * t * t
-        | LetRec of Info.t * (lambda list)
+        | LetRec of Info.t * (lambda list) * t
         | If of Info.t * t * t * t
         | Tuple of Info.t * (t list)
         | BinOp of Info.t * t * Common.BinOp.t * t

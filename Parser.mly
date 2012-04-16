@@ -159,7 +159,7 @@ expr:
     | LET tuple_pattern EQUALS expr IN expr {
             AST.Expr.LetTuple(info (), List.rev $2, $4, $6)
         }
-    | LET REC reclist IN EXPR {
+    | LET REC rec_list IN expr {
             AST.Expr.LetRec(info (), List.rev $3, $5)
         }
     | LAMBDA arglist DOT expr {

@@ -20,10 +20,14 @@ module StringMap : Map.S with type key = string;;
 
 module Expr : sig
 
-    type t =
-        | Lambda of Info.t * Type.t * (Type.t * (string option)) list * t
-        | Let of Info.t * Type.t * (Type.t * (string option)) * t * t
-        | LetTuple of Info.t * Type.t * (Type.t * (string option)) list * t * t
+    type arg = (Type.t * (string option)) with sexp;;
+
+    type lambda = Info.t * Type.t * string * (arg list) * t
+    and t =
+        | Lambda of Info.t * Type.t * arg list * t
+        | Let of Info.t * Type.t * arg * t * t
+        | LetTuple of Info.t * Type.t * arg list * t * t
+        | LetRec of Info.t * Type.t * (lambda list) * t
         | If of Info.t * Type.t * t * t * t
         | Tuple of Info.t * Type.t * t list
         | BinOp of Info.t * Type.t * t * Common.BinOp.t * t
@@ -38,9 +42,7 @@ end;;
 
 type t =
     | Top of Info.t * Type.t * string option * Expr.t
-    | TopRec of Info.t * ((Info.t * Type.t * string
-                            * ((Type.t * (string option)) list)
-                            * Expr.t) list)
+    | TopRec of Info.t * (Expr.lambda list)
     | Extern of Info.t * string * Common.External.t
     with sexp
 ;;

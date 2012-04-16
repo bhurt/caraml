@@ -95,11 +95,14 @@ let not_a_function info f_ty =
 
 module Expr = struct
 
-    type t =
-        | Lambda of Info.t * Type.t * (Type.t * (string option)) list * t
-        | Let of Info.t * Type.t * (Type.t * (string option)) * t * t
-        | LetTuple of Info.t * Type.t
-                        * ((Type.t * (string option)) list) * t * t
+    type arg = (Type.t * (string option)) with sexp;;
+
+    type lambda = Info.t * Type.t * string * (arg list) * t
+    and t =
+        | Lambda of Info.t * Type.t * arg list * t
+        | Let of Info.t * Type.t * arg * t * t
+        | LetTuple of Info.t * Type.t * arg list * t * t
+        | LetRec of Info.t * Type.t * (lambda list) * t
         | If of Info.t * Type.t * t * t * t
         | Tuple of Info.t * Type.t * t list
         | BinOp of Info.t * Type.t * t * Common.BinOp.t * t
@@ -114,6 +117,7 @@ module Expr = struct
         | Lambda(_, ty, _, _)
         | Let(_, ty, _, _, _)
         | LetTuple(_, ty, _, _, _)
+        | LetRec(_, ty, _, _)
         | If(_, ty, _, _, _)
         | Tuple(_, ty, _)
         | BinOp(_, ty, _, _, _)
@@ -128,6 +132,7 @@ module Expr = struct
         | Lambda(info, _, _, _)
         | Let(info, _, _, _, _)
         | LetTuple(info, _, _, _, _)
+        | LetRec(info, _, _, _)
         | If(info, _, _, _, _)
         | Tuple(info, _, _)
         | BinOp(info, _, _, _, _)
@@ -138,7 +143,12 @@ module Expr = struct
             -> info
     ;;
 
-    let rec handle_lambda type_env args x =
+    let add_lambda_type type_env (_, name, args, rtype, _) =
+        let ty = Type.fn_type (List.map fst args) rtype in
+        StringMap.add name ty type_env
+    ;;
+
+    let rec convert_lambda type_env (info, name, args, rtype, x) =
         let type_env =
             List.fold_left
                 (fun m (t, a) ->
@@ -149,17 +159,24 @@ module Expr = struct
                 args
         in
         let x = convert type_env x in
-        let ty = get_type x in
-        let ty = List.fold_right
-                    (fun (x, _) y -> Type.Arrow(x,y))
-                    args ty
-        in
-        ty, x
+        let _ = unify info (get_type x) rtype in
+        let fty = Type.fn_type (List.map fst args) rtype in
+        (info, fty, name, args, x)
 
     and convert type_env = function
 
         | AST.Expr.Lambda(info, args, x) ->
-            let ty, x = handle_lambda type_env args x in
+            let type_env =
+                List.fold_left
+                    (fun m (t, a) ->
+                        match a with
+                        | Some v -> StringMap.add v t m
+                        | None -> m)
+                    type_env
+                    args
+            in
+            let x = convert type_env x in
+            let ty = Type.fn_type (List.map fst args) (get_type x) in
             Lambda(info, ty, args, x)
 
         | AST.Expr.Let(info, None, x, y) ->
@@ -203,6 +220,12 @@ module Expr = struct
                 | _ ->
                     not_tuple_type_error (get_info x) ty
             end
+
+        | AST.Expr.LetRec(info, fns, x) ->
+            let type_env = List.fold_left add_lambda_type type_env fns in
+            let fns = List.map (convert_lambda type_env) fns in
+            let x = convert type_env x in
+            LetRec(info, (get_type x), fns, x)
 
         | AST.Expr.If(info, x, y, z) ->
             let x = convert type_env x in
@@ -264,9 +287,7 @@ end;;
 
 type t =
     | Top of Info.t * Type.t * (string option) * Expr.t
-    | TopRec of Info.t * ((Info.t * Type.t * string
-                            * ((Type.t * (string option)) list)
-                            * Expr.t) list)
+    | TopRec of Info.t * (Expr.lambda list)
     | Extern of Info.t * string * Common.External.t
     with sexp;;
 
@@ -281,23 +302,8 @@ let convert type_env = function
         in
         type_env, Top(info, ty, v, x)
     | AST.TopRec(info, fns) ->
-        let type_env =
-            List.fold_left
-                (fun type_env (_, n, args, rty, _) ->
-                    let fty = Type.fn_type (List.map fst args) rty in
-                    StringMap.add n fty type_env)
-                type_env
-                fns
-        in
-        let fns =
-            List.map
-                (fun (i, n, args, rty, x) ->
-                    let ty, x = Expr.handle_lambda type_env args x in
-                    let fty = Type.fn_type (List.map fst args) rty in
-                    let _ = unify i fty ty in
-                    (i, fty, n, args, x))
-                fns
-        in
+        let type_env = List.fold_left Expr.add_lambda_type type_env fns in
+        let fns = List.map (Expr.convert_lambda type_env) fns in
         type_env, TopRec(info, fns)
                     
     | AST.Extern(info, v, extern) ->

@@ -20,6 +20,7 @@ type base =
     | Int
     | Boolean
     | Unit
+    | Float
     with sexp
 ;;
 

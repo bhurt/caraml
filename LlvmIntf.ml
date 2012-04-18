@@ -44,6 +44,7 @@ let llvm_of_type = function
     | Type.Base(Type.Unit) -> unit_type
     | Type.Base(Type.Int) -> int_type
     | Type.Base(Type.Boolean) -> bool_type
+    | Type.Base(Type.Float) -> float_type
     | Type.Arrow(_, _)
     | Type.Tuple(_) -> intptr_type
 ;;
@@ -74,6 +75,7 @@ let init_of_type = function
     | Type.Base(Type.Int) -> int_init
     | Type.Base(Type.Boolean) -> bool_init
     | Type.Base(Type.Unit) -> unit_init
+    | Type.Base(Type.Float) -> float_init
     | Type.Arrow(_, _)
     | Type.Tuple(_) -> ptr_init
 ;;
@@ -276,6 +278,21 @@ let unop op b x =
 let neg b x = unop Llvm.build_neg b x;;
 let bool_not b x = unop Llvm.build_not b x;;
 
+let fadd b x y = binop Llvm.build_fadd b x y;;
+let fsub b x y = binop Llvm.build_fsub b x y;;
+let fmul b x y = binop Llvm.build_fmul b x y;;
+let fdiv b x y = binop Llvm.build_fdiv b x y;;
+
+let fcompare t b x y = binop (Llvm.build_fcmp t) b x y;;
+let flt b x y = fcompare Llvm.Fcmp.Ult b x y;;
+let fle b x y = fcompare Llvm.Fcmp.Ule b x y;;
+let fgt b x y = fcompare Llvm.Fcmp.Ugt b x y;;
+let fge b x y = fcompare Llvm.Fcmp.Uge b x y;;
+let feq b x y = fcompare Llvm.Fcmp.Ueq b x y;;
+let fne b x y = fcompare Llvm.Fcmp.Une b x y;;
+
+let fneg b x = unop Llvm.build_fneg b x;;
+
 let phi b vs =
     let name = alloc_reg_name () in
     let vs =
@@ -344,6 +361,7 @@ let box = function
     | Type.Base(Type.Unit) -> box_unit
     | Type.Base(Type.Int) -> box_int
     | Type.Base(Type.Boolean) -> box_bool
+    | Type.Base(Type.Float) -> box_float
     | Type.Arrow(_, _)
     | Type.Tuple(_) -> box_ptr
 ;;
@@ -368,6 +386,7 @@ let unbox = function
     | Type.Base(Type.Unit) -> unbox_unit
     | Type.Base(Type.Int) -> unbox_int
     | Type.Base(Type.Boolean) -> unbox_bool
+    | Type.Base(Type.Float) -> unbox_float
     | Type.Arrow(_, _)
     | Type.Tuple(_) -> unbox_ptr
 ;;

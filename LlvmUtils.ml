@@ -53,6 +53,8 @@ let get_member b ptr ty i =
         LlvmIntf.int_to_bool b (load b ptr i)
     | Type.Base(Type.Int) ->
         load b ptr i
+    | Type.Base(Type.Float) ->
+        load b ~lltype:LlvmIntf.float_type ptr i
     | Type.Arrow(_, _)
     | Type.Tuple(_) ->
         load b ~lltype:LlvmIntf.intptr_type ptr i
@@ -65,6 +67,8 @@ let set_member b ~ptr ty i ~value =
     | Type.Base(Type.Unit)
     | Type.Base(Type.Int) ->
         store b ~ptr i ~value
+    | Type.Base(Type.Float) ->
+        store b ~lltype:LlvmIntf.float_type ~ptr i ~value
     | Type.Arrow(_, _)
     | Type.Tuple(_) ->
         store b ~lltype:LlvmIntf.intptr_type ~ptr i ~value

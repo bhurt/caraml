@@ -48,6 +48,7 @@ end;;
 module BinOp : sig
 
     type t =
+        (* Integer Ops *)
         | Times
         | Divide
         | Add
@@ -58,13 +59,24 @@ module BinOp : sig
         | Gt
         | Eq
         | Ne
+
+        (* Boolean ops *)
         | And
         | Or
-    ;;
 
-    val t_of_sexp__ : Sexplib.Sexp.t -> t;;
-    val t_of_sexp : Sexplib.Sexp.t -> t;;
-    val sexp_of_t : t -> Sexplib.Sexp.t;;
+        (* Float ops *)
+        | FTimes
+        | FDivide
+        | FAdd
+        | FSubtract
+        | FLe
+        | FGe
+        | FLt
+        | FGt
+        | FEq
+        | FNe
+        with sexp
+    ;;
 
     val get_types : t -> Type.t * Type.t * Type.t;;
 
@@ -75,11 +87,9 @@ module UnOp : sig
     type t =
         | Neg
         | Not
+        | FNeg
+        with sexp
     ;;
-
-    val t_of_sexp__ : Sexplib.Sexp.t -> t;;
-    val t_of_sexp : Sexplib.Sexp.t -> t;;
-    val sexp_of_t : t -> Sexplib.Sexp.t;;
 
     val get_types : t -> Type.t * Type.t;;
 
@@ -90,12 +100,10 @@ module Const : sig
     type t =
         | Boolean of bool
         | Int of int
+        | Float of float
         | Unit
+        with sexp
     ;;
-
-    val t_of_sexp__ : Sexplib.Sexp.t -> t;;
-    val t_of_sexp : Sexplib.Sexp.t -> t;;
-    val sexp_of_t : t -> Sexplib.Sexp.t;;
 
     val get_type : t -> Type.t;;
 

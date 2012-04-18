@@ -38,6 +38,7 @@ let parse_error s =
 %token <string> VAR
 %token <bool> BOOLEAN_VAL
 %token <int> INT_VAL
+%token <float> FLOAT_VAL
 
 %token EOF
 
@@ -57,6 +58,17 @@ let parse_error s =
 %token ELSE
 %token EQUALS
 %token EQUALS_EQUALS
+%token FDIVIDE
+%token FEQ
+%token FGE
+%token FGT
+%token FLE
+%token FLT
+%token FMINUS
+%token FNE
+%token FNEGATE
+%token FPLUS
+%token FTIMES
 %token GREATER_EQUALS
 %token GREATER_THAN
 %token IF
@@ -223,6 +235,12 @@ comp_op:
     | GREATER_EQUALS { Common.BinOp.Ge }
     | EQUALS_EQUALS { Common.BinOp.Eq }
     | NOT_EQUALS { Common.BinOp.Ne }
+    | FEQ { Common.BinOp.FEq }
+    | FNE { Common.BinOp.FNe }
+    | FLT { Common.BinOp.FLt }
+    | FGT { Common.BinOp.FGt }
+    | FLE { Common.BinOp.FLe }
+    | FGE { Common.BinOp.FGe }
 ;
 
 add_expr:
@@ -231,6 +249,12 @@ add_expr:
         }
     | add_expr MINUS times_expr {
             AST.Expr.BinOp(info (), $1, Common.BinOp.Subtract, $3)
+        }
+    | add_expr FPLUS times_expr {
+            AST.Expr.BinOp(info (), $1, Common.BinOp.FAdd, $3)
+        }
+    | add_expr FMINUS times_expr {
+            AST.Expr.BinOp(info (), $1, Common.BinOp.FSubtract, $3)
         }
     | times_expr { $1 }
 ;
@@ -242,12 +266,21 @@ times_expr:
     | times_expr DIVIDE neg_expr {
             AST.Expr.BinOp(info (), $1, Common.BinOp.Divide, $3)
         }
+    | times_expr FTIMES neg_expr {
+            AST.Expr.BinOp(info (), $1, Common.BinOp.FTimes, $3)
+        }
+    | times_expr FDIVIDE neg_expr {
+            AST.Expr.BinOp(info (), $1, Common.BinOp.FDivide, $3)
+        }
     | neg_expr { $1 }
 ;
 
 neg_expr:
       NEGATE neg_expr {
             AST.Expr.UnOp(info (), Common.UnOp.Neg, $2)
+        }
+    | FNEGATE neg_expr {
+            AST.Expr.UnOp(info (), Common.UnOp.FNeg, $2)
         }
     | apply_expr { $1 }
 ;
@@ -263,6 +296,7 @@ base_expr:
       VAR { AST.Expr.Var(info (), $1) }
     | BOOLEAN_VAL { AST.Expr.Const(info(), Common.Const.Boolean $1) }
     | INT_VAL { AST.Expr.Const(info(), Common.Const.Int $1) }
+    | FLOAT_VAL { AST.Expr.Const(info (), Common.Const.Float $1) }
     | OPEN_PAREN CLOSE_PAREN { AST.Expr.Const(info(), Common.Const.Unit) }
     | OPEN_PAREN expr CLOSE_PAREN { $2 }
 ;

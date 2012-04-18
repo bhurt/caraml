@@ -55,6 +55,7 @@ let keyword lexbuf =
 
 }
 
+let newline = ( '\010' | '\013' | "\013\010" )
 let blank = [ ' ' '\009' '\010' '\012' '\013' ]
 let lowercase = [ 'a'-'z' '_' ]
 let uppercase = [ 'A'-'Z' ]
@@ -64,11 +65,18 @@ let identchar = (lowercase | uppercase | digit | prime)
 
 rule token = parse
     | blank+ { token lexbuf }
-    | digit+ {
+    | digit+ "." digit+ ( [ 'e' 'E' ] [ '+' '-' ]? digit+ )? {
+            Parser.FLOAT_VAL (float_of_string (Lexing.lexeme lexbuf))
+        }
+    | digit+ [ 'e' 'E' ] [ '+' '-' ] digit+ {
+            Parser.FLOAT_VAL (float_of_string (Lexing.lexeme lexbuf))
+        }
+    | [ '+' '-' ]? digit+ {
             Parser.INT_VAL (int_of_string (Lexing.lexeme lexbuf))
         } 
 
     | (uppercase | lowercase) identchar* { keyword lexbuf }
+    | "#" [^ '\010' '\013' ]* newline { token lexbuf }
     | "&&" { Parser.BOOL_AND }
     | "->" { Parser.ARROW }
     | ")" { Parser.CLOSE_PAREN }
@@ -87,6 +95,7 @@ rule token = parse
     | "<" { Parser.LESS_THAN }
     | "-" { Parser.MINUS }
     | "~" { Parser.NEGATE }
+    | "~." { Parser.FNEGATE }
     | "!" { Parser.BOOL_NOT }
     | "!=" { Parser.NOT_EQUALS }
     | "/=" { Parser.NOT_EQUALS }
@@ -94,6 +103,17 @@ rule token = parse
     | "||" { Parser.BOOL_OR }
     | "+" { Parser.PLUS }
     | "*" { Parser.TIMES }
+    | "+." { Parser.FPLUS }
+    | "-." { Parser.FMINUS }
+    | "*." { Parser.FTIMES }
+    | "/." { Parser.FDIVIDE }
+    | "==." { Parser.FEQ }
+    | "!=." { Parser.FNE }
+    | "/=." { Parser.FNE }
+    | "<."  { Parser.FLT }
+    | ">."  { Parser.FGT }
+    | "<=." { Parser.FLE }
+    | ">=." { Parser.FGE }
 
     | eof { Parser.EOF }
     | _ {

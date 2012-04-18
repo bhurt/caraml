@@ -80,6 +80,20 @@ val ne : block_t -> Llvm.llvalue -> Llvm.llvalue -> Llvm.llvalue;;
 val neg : block_t -> Llvm.llvalue -> Llvm.llvalue;;
 val bool_not : block_t -> Llvm.llvalue -> Llvm.llvalue;;
 
+val fadd : block_t -> Llvm.llvalue -> Llvm.llvalue -> Llvm.llvalue;;
+val fsub : block_t -> Llvm.llvalue -> Llvm.llvalue -> Llvm.llvalue;;
+val fmul : block_t -> Llvm.llvalue -> Llvm.llvalue -> Llvm.llvalue;;
+val fdiv : block_t -> Llvm.llvalue -> Llvm.llvalue -> Llvm.llvalue;;
+
+val flt : block_t -> Llvm.llvalue -> Llvm.llvalue -> Llvm.llvalue;;
+val fle : block_t -> Llvm.llvalue -> Llvm.llvalue -> Llvm.llvalue;;
+val fgt : block_t -> Llvm.llvalue -> Llvm.llvalue -> Llvm.llvalue;;
+val fge : block_t -> Llvm.llvalue -> Llvm.llvalue -> Llvm.llvalue;;
+val feq : block_t -> Llvm.llvalue -> Llvm.llvalue -> Llvm.llvalue;;
+val fne : block_t -> Llvm.llvalue -> Llvm.llvalue -> Llvm.llvalue;;
+
+val fneg : block_t -> Llvm.llvalue -> Llvm.llvalue;;
+
 val phi : block_t -> (Llvm.llvalue * block_t) list -> Llvm.llvalue;;
 
 val load : block_t -> Llvm.llvalue -> Llvm.llvalue;;

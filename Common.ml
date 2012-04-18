@@ -68,6 +68,7 @@ end;;
 module BinOp = struct
 
     type t =
+        (* Integer Ops *)
         | Times
         | Divide
         | Add
@@ -78,8 +79,22 @@ module BinOp = struct
         | Gt
         | Eq
         | Ne
+
+        (* Boolean ops *)
         | And
         | Or
+
+        (* Float ops *)
+        | FTimes
+        | FDivide
+        | FAdd
+        | FSubtract
+        | FLe
+        | FGe
+        | FLt
+        | FGt
+        | FEq
+        | FNe
         with sexp
     ;;
 
@@ -96,6 +111,14 @@ module BinOp = struct
         | And | Or
             -> (Type.Base(Type.Boolean), Type.Base(Type.Boolean),
                 Type.Base(Type.Boolean))
+
+        | FTimes | FDivide | FAdd | FSubtract
+            -> (Type.Base(Type.Float), Type.Base(Type.Float),
+                Type.Base(Type.Float))
+
+        | FLe | FGe | FLt | FGt | FEq | FNe
+            -> (Type.Base(Type.Float), Type.Base(Type.Float),
+                Type.Base(Type.Boolean))
     ;;
 
 
@@ -106,12 +129,14 @@ module UnOp = struct
     type t =
         | Neg
         | Not
+        | FNeg
         with sexp
     ;;
 
     let get_types = function
         | Neg -> (Type.Base(Type.Int), Type.Base(Type.Int))
         | Not -> (Type.Base(Type.Boolean), Type.Base(Type.Boolean))
+        | FNeg -> (Type.Base(Type.Float), Type.Base(Type.Float))
     ;;
 
 
@@ -123,6 +148,7 @@ module Const = struct
     type t =
         | Boolean of bool
         | Int of int
+        | Float of float
         | Unit
         with sexp
     ;;
@@ -130,6 +156,7 @@ module Const = struct
     let get_type = function
         | Boolean(_) -> Type.Base(Type.Boolean)
         | Int(_) -> Type.Base(Type.Int)
+        | Float(_) -> Type.Base(Type.Float)
         | Unit -> Type.Base(Type.Unit)
     ;;
 

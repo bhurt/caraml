@@ -71,11 +71,24 @@ module InnerExpr = struct
         | Common.BinOp.Ne -> LlvmIntf.ne
         | Common.BinOp.And -> LlvmIntf.bool_and
         | Common.BinOp.Or -> LlvmIntf.bool_or
+
+        | Common.BinOp.FTimes -> LlvmIntf.fmul
+        | Common.BinOp.FDivide -> LlvmIntf.fdiv
+        | Common.BinOp.FAdd -> LlvmIntf.fadd
+        | Common.BinOp.FSubtract -> LlvmIntf.fsub
+        | Common.BinOp.FLe -> LlvmIntf.fle
+        | Common.BinOp.FGe -> LlvmIntf.fge
+        | Common.BinOp.FLt -> LlvmIntf.flt
+        | Common.BinOp.FGt -> LlvmIntf.fgt
+        | Common.BinOp.FEq -> LlvmIntf.feq
+        | Common.BinOp.FNe -> LlvmIntf.fne
+
     ;;
 
     let unop_ins = function
         | Common.UnOp.Neg -> LlvmIntf.neg
         | Common.UnOp.Not -> LlvmIntf.bool_not
+        | Common.UnOp.FNeg -> LlvmIntf.fneg
     ;;
 
     let box block names (ty, n) =
@@ -190,6 +203,7 @@ module InnerExpr = struct
                     | Common.Const.Boolean b -> LlvmIntf.bool_const b
                     | Common.Const.Int i -> LlvmIntf.int_const i
                     | Common.Const.Unit -> LlvmIntf.unit_const ()
+                    | Common.Const.Float x -> LlvmIntf.float_const x
             in
             (res, start_block)
         | CallOpt.InnerExpr.CallExtern(_, _, xtern, xs) ->

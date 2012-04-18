@@ -22,6 +22,7 @@ type base =
     | Int
     | Boolean
     | Unit
+    | Float
     with sexp
 ;;
 
@@ -59,6 +60,7 @@ let rec pprint indent = function
     | Base(Int) -> Format.print_string "int"
     | Base(Boolean) -> Format.print_string "boolean"
     | Base(Unit) -> Format.print_string "unit"
+    | Base(Float) -> Format.print_string "float"
 ;;
 
 

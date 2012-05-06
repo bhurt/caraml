@@ -18,11 +18,7 @@
 
 module Var : sig
 
-    type t;;
-
-    val t_of_sexp__ : Sexplib.Sexp.t -> t;;
-    val t_of_sexp : Sexplib.Sexp.t -> t;;
-    val sexp_of_t : t -> Sexplib.Sexp.t;;
+    type t with sexp;;
 
     val of_string : string -> t;;
     val to_string : t -> string;; (* Returns a unique name! *)
@@ -37,11 +33,7 @@ end;;
 
 module Arg : sig
 
-    type t = Type.t * (Var.t option);;
-
-    val t_of_sexp__ : Sexplib.Sexp.t -> t;;
-    val t_of_sexp : Sexplib.Sexp.t -> t;;
-    val sexp_of_t : t -> Sexplib.Sexp.t;;
+    type t = Var.t Type.t * (Var.t option) with sexp;;
 
 end;;
 
@@ -78,7 +70,7 @@ module BinOp : sig
         with sexp
     ;;
 
-    val get_types : t -> Type.t * Type.t * Type.t;;
+    val get_types : t -> 'a Type.t * 'a Type.t * 'a Type.t;;
 
 end;;
 
@@ -91,7 +83,7 @@ module UnOp : sig
         with sexp
     ;;
 
-    val get_types : t -> Type.t * Type.t;;
+    val get_types : t -> 'a Type.t * 'a Type.t;;
 
 end;;
 
@@ -105,21 +97,17 @@ module Const : sig
         with sexp
     ;;
 
-    val get_type : t -> Type.t;;
+    val get_type : t -> 'a Type.t;;
 
 end;;
 
 module External : sig
 
-    type t = {
+    type 'a t = {
         real_name : string;
-        return_type : Type.t;
-        arg_types : Type.t list;
-    };;
-
-    val t_of_sexp__ : Sexplib.Sexp.t -> t;;
-    val t_of_sexp : Sexplib.Sexp.t -> t;;
-    val sexp_of_t : t -> Sexplib.Sexp.t;;
+        return_type : 'a Type.t;
+        arg_types : 'a Type.t list;
+    } with sexp;;
 
 end;;
 

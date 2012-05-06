@@ -61,7 +61,7 @@ end;;
 
 module Arg = struct
 
-    type t = Type.t * (Var.t option) with sexp;;
+    type t = Var.t Type.t * (Var.t option) with sexp;;
 
 end;;
 
@@ -165,10 +165,10 @@ end;;
 
 module External = struct
 
-    type t = {
+    type 'a t = {
         real_name : string;
-        return_type : Type.t;
-        arg_types : Type.t list;
+        return_type : 'a Type.t;
+        arg_types : 'a Type.t list;
     } with sexp;;
 
 

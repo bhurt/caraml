@@ -16,36 +16,58 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 *)
 
+module CheckedString : sig
+    type t with sexp;;
+    val to_string : t -> string;;
+end;;
+
 module StringMap : Map.S with type key = string;;
+
+type type_t = CheckedString.t Type.t with sexp;;
+
+type type_env_t = {
+    type_map : type_t StringMap.t;
+    type_defn : type_t list StringMap.t StringMap.t;
+};;
+
+module Pattern : sig
+
+    type t = Pattern of Info.t * string * ((type_t * string option) list)
+                with sexp;;
+
+end;;
 
 module Expr : sig
 
-    type arg = (Type.t * (string option)) with sexp;;
+    type arg = (type_t * (string option)) with sexp;;
 
-    type lambda = Info.t * Type.t * string * (arg list) * t
+    type lambda = Info.t * type_t * string * (arg list) * t
     and t =
-        | Lambda of Info.t * Type.t * arg list * t
-        | Let of Info.t * Type.t * arg * t * t
-        | LetTuple of Info.t * Type.t * arg list * t * t
-        | LetRec of Info.t * Type.t * (lambda list) * t
-        | If of Info.t * Type.t * t * t * t
-        | Tuple of Info.t * Type.t * t list
-        | BinOp of Info.t * Type.t * t * Common.BinOp.t * t
-        | UnOp of Info.t * Type.t * Common.UnOp.t * t
-        | Apply of Info.t * Type.t * t * t
-        | Var of Info.t * Type.t * string
-        | Const of Info.t * Type.t * Common.Const.t
+        | Lambda of Info.t * type_t * arg list * t
+        | Let of Info.t * type_t * arg * t * t
+        | LetTuple of Info.t * type_t * arg list * t * t
+        | LetRec of Info.t * type_t * (lambda list) * t
+        | If of Info.t * type_t * t * t * t
+        | Match of Info.t * type_t * t * ((Pattern.t * t) list)
+        | Tuple of Info.t * type_t * t list
+        | BinOp of Info.t * type_t * t * Common.BinOp.t * t
+        | UnOp of Info.t * type_t * Common.UnOp.t * t
+        | Apply of Info.t * type_t * t * t
+        | Var of Info.t * type_t * string
+        | Const of Info.t * type_t * Common.Const.t
         with sexp
     ;;
 
 end;;
 
 type t =
-    | Top of Info.t * Type.t * string option * Expr.t
+    | Top of Info.t * type_t * string option * Expr.t
     | TopRec of Info.t * (Expr.lambda list)
-    | Extern of Info.t * string * Common.External.t
+    | Extern of Info.t * string * CheckedString.t Common.External.t
+    | VariantDef of Info.t * string
+                        * ((Info.t * string * (type_t list)) list)
     with sexp
 ;;
 
-val convert : Type.t StringMap.t -> AST.t -> (Type.t StringMap.t * t);;
+val convert : type_env_t -> AST.t -> (type_env_t * t);;
 

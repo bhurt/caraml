@@ -26,21 +26,22 @@ type base =
     with sexp
 ;;
 
-type t =
-    | Arrow of t * t
-    | Tuple of t list
+type 'a t =
+    | Arrow of 'a t * 'a t
+    | Tuple of 'a t list
+    | Named of 'a
     | Base of base
     with sexp
 ;;
 
-let rec pprint indent = function
+let rec pprint to_string indent = function
     | Arrow(f, x) ->
         begin
-            pprint indent f;
+            pprint to_string indent f;
             Format.print_cut ();
             Format.open_box indent;
             Format.print_string " -> ";
-            pprint indent x;
+            pprint to_string indent x;
             Format.close_box ();
         end
     | Tuple([]) -> assert false
@@ -50,17 +51,18 @@ let rec pprint indent = function
                 Format.print_string ",";
                 Format.print_space ();
                 Format.open_box indent;
-                pprint indent t;
+                pprint to_string indent t;
                 Format.close_box ();
                 ()
             in
-            pprint indent t;
+            pprint to_string indent t;
             List.iter f ts
         end
     | Base(Int) -> Format.print_string "int"
     | Base(Boolean) -> Format.print_string "boolean"
     | Base(Unit) -> Format.print_string "unit"
     | Base(Float) -> Format.print_string "float"
+    | Named(s) -> Format.print_string (to_string s)
 ;;
 
 
@@ -75,6 +77,7 @@ let rec equals t1 t2 : bool =
             else
                 List.for_all2 equals t1s t2s
         end
+    | Named(s), Named(t) -> (s = t)
     | Base(Int), Base(Int)
     | Base(Boolean), Base(Boolean)
     | Base(Unit), Base(Unit)

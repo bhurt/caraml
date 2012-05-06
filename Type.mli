@@ -24,16 +24,17 @@ type base =
     with sexp
 ;;
 
-type t =
-    | Arrow of t * t
-    | Tuple of t list
+type 'a t =
+    | Arrow of 'a t * 'a t
+    | Tuple of 'a t list
+    | Named of 'a
     | Base of base
     with sexp
 ;;
 
-val pprint : int -> t -> unit;;
+val pprint : ('a -> string) -> int -> 'a t -> unit;;
 
-val equals : t -> t -> bool;;
+val equals : 'a t -> 'a t -> bool;;
 
-val fn_type : t list -> t -> t;;
+val fn_type : 'a t list -> 'a t -> 'a t;;
 

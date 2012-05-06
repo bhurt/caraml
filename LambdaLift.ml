@@ -18,30 +18,36 @@
 
 open Sexplib.Conv;;
 
+type type_t = Common.Var.t Type.t with sexp;;
+
+type tag_t = int with sexp;;
+
 module Expr = struct
 
     type t =
-        | Let of Info.t * Type.t * Common.Arg.t * t * t
-        | LetTuple of Info.t * Type.t * Common.Arg.t list * t * t
-        | If of Info.t * Type.t * t * t * t
-        | Tuple of Info.t * Type.t * t list
-        | BinOp of Info.t * Type.t * t * Common.BinOp.t * t
-        | UnOp of Info.t * Type.t * Common.UnOp.t * t
-        | Apply of Info.t * Type.t * t * t
-        | Var of Info.t * Type.t * Common.Var.t
-        | Const of Info.t * Type.t * Common.Const.t
-        | CallExtern of Info.t * Type.t * Common.External.t
-                                        * ((Type.t * Common.Var.t) list)
+        | Let of Info.t * type_t * Common.Arg.t * t * t
+        | If of Info.t * type_t * t * t * t
+        | AllocTuple of Info.t * type_t * tag_t * (t list)
+        | GetField of Info.t * type_t * int * t
+        | Case of Info.t * type_t * (type_t * Common.Var.t)
+                        * ((tag_t * t) list)
+        | BinOp of Info.t * type_t * t * Common.BinOp.t * t
+        | UnOp of Info.t * type_t * Common.UnOp.t * t
+        | Apply of Info.t * type_t * t * t
+        | Var of Info.t * type_t * Common.Var.t
+        | Const of Info.t * type_t * Common.Const.t
+        | CallExtern of Info.t * type_t * Common.Var.t Common.External.t
+                                        * ((type_t * Common.Var.t) list)
         with sexp
     ;;
 
 end;;
 
 type t =
-    | TopFun of Info.t * Type.t * Common.Var.t * (Common.Arg.t list) * Expr.t
-    | TopVar of Info.t * Type.t * Common.Var.t * Expr.t
-    | TopForward of Info.t * Type.t * Common.Var.t * int
-    | TopExpr of Info.t * Type.t * Expr.t
+    | TopFun of Info.t * type_t * Common.Var.t * (Common.Arg.t list) * Expr.t
+    | TopVar of Info.t * type_t * Common.Var.t * Expr.t
+    | TopForward of Info.t * type_t * Common.Var.t * int
+    | TopExpr of Info.t * type_t * Expr.t
     with sexp
 ;;
 
@@ -60,11 +66,6 @@ let rec convert_expr acc = function
         let acc, y = convert_expr acc y in
         acc, Expr.Let(info, ty, arg, x, y)
 
-    | LambdaConv.Expr.LetTuple(info, ty, args, x, y) ->
-        let acc, x = convert_expr acc x in
-        let acc, y = convert_expr acc y in
-        acc, Expr.LetTuple(info, ty, args, x, y)
-
     | LambdaConv.Expr.LetFn(info, ty, fn, x) ->
         let acc, fn = convert_lambda acc fn in
         let acc, x = convert_expr acc x in
@@ -82,10 +83,25 @@ let rec convert_expr acc = function
         let acc, z = convert_expr acc z in
         acc, Expr.If(info, ty, x, y, z)
 
-    | LambdaConv.Expr.Tuple(info, ty, xs) ->
+    | LambdaConv.Expr.AllocTuple(info, ty, tag, xs) ->
         let acc, xs = Utils.map_accum convert_expr acc xs in
         let xs = List.rev xs in
-        acc, Expr.Tuple(info, ty, xs)
+        acc, Expr.AllocTuple(info, ty, tag, xs)
+
+    | LambdaConv.Expr.GetField(info, ty, num, x) ->
+        let acc, x = convert_expr acc x in
+        acc, Expr.GetField(info, ty, num, x)
+
+    | LambdaConv.Expr.Case(info, ty, n, opts) ->
+        let acc, opts =
+            Utils.map_accum
+                (fun acc (tag, x) ->
+                    let acc, x = convert_expr acc x in
+                    acc, (tag, x))
+                acc
+                opts
+        in
+        acc, Expr.Case(info, ty, n, opts)
 
     | LambdaConv.Expr.BinOp(info, ty, x, op, y) ->
         let acc, x = convert_expr acc x in

@@ -56,6 +56,7 @@ let get_member b ptr ty i =
     | Type.Base(Type.Float) ->
         load b ~lltype:LlvmIntf.float_type ptr i
     | Type.Arrow(_, _)
+    | Type.Named(_)
     | Type.Tuple(_) ->
         load b ~lltype:LlvmIntf.intptr_type ptr i
 ;;
@@ -70,6 +71,7 @@ let set_member b ~ptr ty i ~value =
     | Type.Base(Type.Float) ->
         store b ~lltype:LlvmIntf.float_type ~ptr i ~value
     | Type.Arrow(_, _)
+    | Type.Named(_)
     | Type.Tuple(_) ->
         store b ~lltype:LlvmIntf.intptr_type ~ptr i ~value
 ;;
@@ -82,6 +84,7 @@ let make_tag_word ~tag ~len tys =
     assert ((List.length tys) > 0);
     let rec mask_bits b s = function
         | Type.Arrow(_, _) :: xs
+        | Type.Named(_) :: xs
         | Type.Tuple(_) :: xs
             -> mask_bits (b lsl 1) (b lor s) xs
         | Type.Base(_) :: xs

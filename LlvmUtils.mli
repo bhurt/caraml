@@ -20,12 +20,12 @@ val load : LlvmIntf.block_t -> ?lltype:Llvm.lltype -> Llvm.llvalue -> int
             -> Llvm.llvalue;;
 val store: LlvmIntf.block_t-> ?lltype:Llvm.lltype -> ptr:Llvm.llvalue -> int
                 -> value:Llvm.llvalue -> Llvm.llvalue;;
-val get_member : LlvmIntf.block_t -> Llvm.llvalue -> Type.t -> int
+val get_member : LlvmIntf.block_t -> Llvm.llvalue -> 'a Type.t -> int
                     -> Llvm.llvalue;;
-val set_member : LlvmIntf.block_t -> ptr:Llvm.llvalue -> Type.t -> int
+val set_member : LlvmIntf.block_t -> ptr:Llvm.llvalue -> 'a Type.t -> int
                     -> value:Llvm.llvalue -> Llvm.llvalue;;
 
-val make_tag_word : tag:int -> len:int -> Type.t list -> int64;;
+val make_tag_word : tag:int -> len:int -> 'a Type.t list -> int64;;
 val set_tag_word_length : LlvmIntf.block_t -> len:int -> Llvm.llvalue
                                 -> Llvm.llvalue;;
 val heap_alloc : LlvmIntf.block_t -> int -> (Llvm.llvalue * LlvmIntf.block_t);; 

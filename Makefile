@@ -31,6 +31,7 @@ MLFILES = \
     Lexer.ml \
     Annot.ml \
     Alpha.ml \
+    MatchReduce.ml \
     LambdaConv.ml \
     FreeBind.ml \
     LambdaLift.ml \
@@ -98,19 +99,19 @@ endif
 
 $(CMIFILES): %.cmi: %.mli
 ifndef VERBOSE
-	echo Compiling $@
+	echo Compiling $<
 endif
 	$(OCAMLC) -c $<
 
 $(CMOFILES): %.cmo: %.ml %.cmi
 ifndef VERBOSE
-	echo Compiling $@
+	echo Compiling $<
 endif
 	$(OCAMLC) -c $<
 
 $(CMXFILES): %.cmx: %.ml %.cmi
 ifndef VERBOSE
-	echo Compiling $@
+	echo Compiling $<
 endif
 	$(OCAMLOPT) -c $<
 
@@ -122,7 +123,7 @@ endif
 
 Parser.ml Parser.mli: Parser.mly
 ifndef VERBOSE
-	echo Generating $@
+	echo Generating $<
 endif
 	$(OCAMLYACC) -v $<
 

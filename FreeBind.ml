@@ -6,10 +6,10 @@ module FreeVars : sig
                         -> Common.Var.Set.t;;
 
     val free_vars : Common.Var.Set.t -> Expr.t
-                                -> Type.t Common.Var.Map.t;;
+                                -> type_t Common.Var.Map.t;;
 
     val free_vars_lambdas : Common.Var.Set.t -> Expr.lambda list
-                                -> Type.t Common.Var.Map.t;;
+                                -> type_t Common.Var.Map.t;;
 
 end = struct
 
@@ -34,10 +34,6 @@ end = struct
             let s = loop bound s x in
             let bound = bind_arg bound arg in
             loop bound s y
-        | Expr.LetTuple(_, _, args, x, y) ->
-            let s = loop bound s x in
-            let bound = List.fold_left bind_arg bound args in
-            loop bound s y
         | Expr.LetFn(_, _, f, x) ->
             let s = loop_lambda bound s f in
             let bound = bind_lambda bound f in
@@ -50,8 +46,12 @@ end = struct
             let s = loop bound s x in
             let s = loop bound s y in
             loop bound s z
-        | Expr.Tuple(_, _, xs) ->
+        | Expr.AllocTuple(_, _, _, xs) ->
             List.fold_left (loop bound) s xs
+        | Expr.GetField(_, _, _, x) -> loop bound s x
+        | Expr.Case(_, _, n, opts) ->
+            let s = add_var bound s n in
+            List.fold_left (fun s x -> loop bound s (snd x)) s opts
         | Expr.BinOp(_, _, x, _, y) ->
             let s = loop bound s x in
             loop bound s y
@@ -81,10 +81,10 @@ end;;
 
 module ReplaceVars : sig
 
-    val replace_vars : (Info.t -> Type.t -> Expr.t) Common.Var.Map.t
+    val replace_vars : (Info.t -> type_t -> Expr.t) Common.Var.Map.t
                                         -> Expr.t -> Expr.t;;
 
-    val replace_vars_lambda : (Info.t -> Type.t -> Expr.t) Common.Var.Map.t
+    val replace_vars_lambda : (Info.t -> type_t -> Expr.t) Common.Var.Map.t
                                     -> Expr.lambda -> Expr.lambda;;
 
 end = struct
@@ -99,11 +99,6 @@ end = struct
             let x = replace_vars repl x in
             let y = replace_vars repl y in
             Expr.Let(info, ty, arg, x, y)
-
-        | Expr.LetTuple(info, ty, args, x, y) ->
-            let x = replace_vars repl x in
-            let y = replace_vars repl y in
-            Expr.LetTuple(info, ty, args, x, y)
 
         | Expr.LetFn(info, ty, fn, x) ->
             let x = replace_vars repl x in
@@ -121,9 +116,25 @@ end = struct
             let z = replace_vars repl z in
             Expr.If(info, ty, x, y, z)
 
-        | Expr.Tuple(info, ty, xs) ->
+        | Expr.AllocTuple(info, ty, tag, xs) ->
             let xs = List.map (replace_vars repl) xs in
-            Expr.Tuple(info, ty, xs)
+            Expr.AllocTuple(info, ty, tag, xs)
+
+        | Expr.GetField(info, ty, num, x) ->
+            let x = replace_vars repl x in
+            Expr.GetField(info, ty, num, x)
+
+        | Expr.Case(info, ty, n, opts) ->
+            (* Note: because of the way we generate it, the variable we
+             * are switching on can never be free.  This simplifies things
+             * here a lot.
+             *)
+            let opts =
+                List.map
+                    (fun (tag, x) -> tag, replace_vars repl x)
+                    opts
+            in
+            Expr.Case(info, ty, n, opts)
 
         | Expr.BinOp(info, ty, x, op, y) ->
             let x = replace_vars repl x in
@@ -156,11 +167,12 @@ end;;
 
 let get_info = function
     | Expr.Let(info, _, _, _, _)
-    | Expr.LetTuple(info, _, _, _, _)
     | Expr.LetFn(info, _, _, _)
     | Expr.LetRec(info, _, _, _)
     | Expr.If(info, _, _, _, _)
-    | Expr.Tuple(info, _, _)
+    | Expr.AllocTuple(info, _, _, _)
+    | Expr.GetField(info, _, _, _)
+    | Expr.Case(info, _, _, _)
     | Expr.BinOp(info, _, _, _, _)
     | Expr.UnOp(info, _, _, _)
     | Expr.Apply(info, _, _, _)
@@ -171,11 +183,12 @@ let get_info = function
 
 let get_type = function
     | Expr.Let(_, ty, _, _, _)
-    | Expr.LetTuple(_, ty, _, _, _)
     | Expr.LetFn(_, ty, _, _)
     | Expr.LetRec(_, ty, _, _)
     | Expr.If(_, ty, _, _, _)
-    | Expr.Tuple(_, ty, _)
+    | Expr.AllocTuple(_, ty, _, _)
+    | Expr.GetField(_, ty, _, _)
+    | Expr.Case(_, ty, _, _)
     | Expr.BinOp(_, ty, _, _, _)
     | Expr.UnOp(_, ty, _, _)
     | Expr.Apply(_, ty, _, _)
@@ -203,10 +216,15 @@ let detuple tuple_name old_vars var_types tuple_type x =
     let x = map_vars old_vars new_vars x in
     let info = get_info x in
     let ty = get_type x in
-    Expr.LetTuple(info, ty, 
-        (List.map2 (fun nm ty -> ty, Some(nm)) new_vars var_types),
-        Expr.Var(info, tuple_type, tuple_name),
-        x)
+    let tuple_var = Expr.Var(info, tuple_type, tuple_name) in
+    Utils.fold_right2i
+        (fun i nm ty' body ->
+            Expr.Let(info, ty, (ty', Some nm),
+                        Expr.GetField(info, ty', i, tuple_var),
+                        body))
+        new_vars
+        var_types
+        x
 ;;
 
 let make_apply info f x =
@@ -279,11 +297,6 @@ let rec convert_expr publics = function
         let y = convert_expr publics y in
         Expr.Let(info, ty, arg, x, y)
 
-    | Expr.LetTuple(info, ty, args, x, y) ->
-        let x = convert_expr publics x in
-        let y = convert_expr publics y in
-        Expr.LetTuple(info, ty, args, x, y)
-
     | Expr.LetFn(info, ty, fn, x) ->
         let fvmap = FreeVars.free_vars_lambdas publics [ fn ] in
         let nvs = Common.Var.Map.cardinal fvmap in
@@ -314,9 +327,19 @@ let rec convert_expr publics = function
         let z = convert_expr publics z in
         Expr.If(info, ty, x, y, z)
 
-    | Expr.Tuple(info, ty, xs) ->
+    | Expr.AllocTuple(info, ty, tag, xs) ->
         let xs = List.map (convert_expr publics) xs in
-        Expr.Tuple(info, ty, xs)
+        Expr.AllocTuple(info, ty, tag, xs)
+
+    | Expr.GetField(info, ty, num, x) ->
+        let x = convert_expr publics x in
+        Expr.GetField(info, ty, num, x)
+
+    | Expr.Case(info, ty, n, opts) ->
+        let opts =
+            List.map (fun (tag, x) -> tag, convert_expr publics x) opts
+        in
+        Expr.Case(info, ty, n, opts)
 
     | Expr.BinOp(info, ty, x, op, y) ->
         let x = convert_expr publics x in

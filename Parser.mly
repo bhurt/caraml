@@ -56,6 +56,7 @@ let parse_error s =
 %token DOT
 %token DOUBLE_SEMI
 %token ELSE
+%token END
 %token EQUALS
 %token EQUALS_EQUALS
 %token FDIVIDE
@@ -78,15 +79,19 @@ let parse_error s =
 %token LESS_EQUALS
 %token LESS_THAN
 %token LET
+%token MATCH
 %token MINUS
 %token NEGATE
 %token NOT_EQUALS
 %token OPEN_PAREN
+%token PIPE
 %token PLUS
 %token REC
 %token THEN
 %token TIMES
+%token TYPE
 %token UNIT
+%token WITH
 
 %start top_level
 %type <AST.parse_result> top_level
@@ -104,6 +109,10 @@ top_level:
     | LET REC rec_list DOUBLE_SEMI {
             let i = info () in
             AST.Form(AST.TopRec(i, List.rev $3))
+        }
+    | TYPE VAR EQUALS var_def DOUBLE_SEMI {
+            let i = info () in
+            AST.Form(AST.VariantDef(i, $2, List.rev $4))
         }
     | error DOUBLE_SEMI {
             Printf.printf("Syntax Error.\n");
@@ -161,6 +170,7 @@ base_type_expr:
       INT { Type.Base(Type.Int) }
     | BOOLEAN { Type.Base(Type.Boolean) }
     | UNIT { Type.Base(Type.Unit) }
+    | VAR { Type.Named($1) }
     | OPEN_PAREN type_expr CLOSE_PAREN { $2 }
 ;
 
@@ -180,7 +190,32 @@ expr:
     | IF expr THEN expr ELSE expr {
             AST.Expr.If(info (), $2, $4, $6)
         }
+    | MATCH expr WITH match_list END {
+            AST.Expr.Match(info (), $2, List.rev $4)
+        }
     | tuple_expr { $1 }
+;
+
+match_list:
+      PIPE match_clause { [ $2 ] }
+    | match_clause { [ $1 ] }
+    | match_list PIPE match_clause { $3 :: $1 }
+;
+
+match_clause:
+      pattern ARROW expr { $1, $3 }
+;
+
+pattern:
+      VAR { AST.Pattern.Pattern(info(), $1, []) }
+    | VAR OPEN_PAREN binding_list CLOSE_PAREN  {
+            AST.Pattern.Pattern(info (), $1, List.rev $3)
+        }
+;
+
+binding_list:
+      var_or_discard { [ $1 ] }
+    | binding_list COMMA var_or_discard { $3 :: $1 }
 ;
 
 tuple_pattern:
@@ -301,3 +336,20 @@ base_expr:
     | OPEN_PAREN expr CLOSE_PAREN { $2 }
 ;
 
+var_def:
+      variant { [ $1 ] }
+    | PIPE variant { [ $2 ] }
+    | var_def PIPE variant { $3 :: $1 }
+;
+
+variant:
+      VAR { (info(), $1, []) }
+    | VAR OPEN_PAREN type_list CLOSE_PAREN {
+            (info (), $1, List.rev $3)
+        }
+;
+
+type_list:
+      type_expr { [ $1 ] }
+    | type_list COMMA type_expr { $3 :: $1 }
+;

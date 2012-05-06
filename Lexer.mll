@@ -28,6 +28,7 @@ let keywords : Parser.token StringMap.t =
             "boolean", Parser.BOOLEAN;
             "bool", Parser.BOOLEAN;
             "else", Parser.ELSE;
+            "end", Parser.END;
             "false", Parser.BOOLEAN_VAL(false);
             "fn", Parser.LAMBDA;
             "fun", Parser.LAMBDA;
@@ -37,11 +38,14 @@ let keywords : Parser.token StringMap.t =
             "int", Parser.INT;
             "lambda", Parser.LAMBDA;
             "let", Parser.LET;
+            "match", Parser.MATCH;
             "not", Parser.BOOL_NOT;
             "rec", Parser.REC;
             "then", Parser.THEN;
             "true", Parser.BOOLEAN_VAL(true);
+            "type", Parser.TYPE;
             "unit", Parser.UNIT;
+            "with", Parser.WITH;
             "_", Parser.DISCARD ]
 ;;
 
@@ -100,6 +104,7 @@ rule token = parse
     | "!=" { Parser.NOT_EQUALS }
     | "/=" { Parser.NOT_EQUALS }
     | "(" { Parser.OPEN_PAREN }
+    | "|" { Parser.PIPE }
     | "||" { Parser.BOOL_OR }
     | "+" { Parser.PLUS }
     | "*" { Parser.TIMES }

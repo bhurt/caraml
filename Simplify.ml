@@ -18,29 +18,36 @@
 
 open Sexplib.Conv;;
 
+type type_t = Common.Var.t Type.t with sexp;;
+
+type tag_t = int with sexp;;
+
 module Expr = struct
 
     type t =
-        | Let of Info.t * Type.t * Common.Arg.t * t * t
-        | LetTuple of Info.t * Type.t * Common.Arg.t list * t * t
-        | If of Info.t * Type.t * t * t * t
-        | Tuple of Info.t * Type.t * (Type.t * Common.Var.t) list
-        | BinOp of Info.t * Type.t * t * Common.BinOp.t * t
-        | UnOp of Info.t * Type.t * Common.UnOp.t * t
-        | Apply of Info.t * Type.t * (Type.t * Common.Var.t)
-                                        * ((Type.t * Common.Var.t) list)
-        | Var of Info.t * Type.t * Common.Var.t
-        | Const of Info.t * Type.t * Common.Const.t
-        | CallExtern of Info.t * Type.t * Common.External.t
-                                * ((Type.t * Common.Var.t) list)
+        | Let of Info.t * type_t * Common.Arg.t * t * t
+        | If of Info.t * type_t * t * t * t
+        | AllocTuple of Info.t * type_t * tag_t * (type_t * Common.Var.t) list
+        | GetField of Info.t * type_t * int * (type_t * Common.Var.t)
+        | Case of Info.t * type_t * (type_t * Common.Var.t)
+                    * ((tag_t * t) list)
+        | BinOp of Info.t * type_t * t * Common.BinOp.t * t
+        | UnOp of Info.t * type_t * Common.UnOp.t * t
+        | Apply of Info.t * type_t * (type_t * Common.Var.t)
+                                        * ((type_t * Common.Var.t) list)
+        | Var of Info.t * type_t * Common.Var.t
+        | Const of Info.t * type_t * Common.Const.t
+        | CallExtern of Info.t * type_t * Common.Var.t Common.External.t
+                                * ((type_t * Common.Var.t) list)
         with sexp
     ;;
 
     let get_info = function
         | Let(info, _, _, _, _)
-        | LetTuple(info, _, _, _, _)
         | If(info, _, _, _, _)
-        | Tuple(info, _, _)
+        | AllocTuple(info, _, _, _)
+        | GetField(info, _, _, _)
+        | Case(info, _, _, _)
         | BinOp(info, _, _, _, _)
         | UnOp(info, _, _, _)
         | Apply(info, _, _, _)
@@ -52,9 +59,10 @@ module Expr = struct
 
     let get_type = function
         | Let(_, ty, _, _, _)
-        | LetTuple(_, ty, _, _, _)
         | If(_, ty, _, _, _)
-        | Tuple(_, ty, _)
+        | AllocTuple(_, ty, _, _)
+        | GetField(_, ty, _, _)
+        | Case(_, ty, _, _)
         | BinOp(_, ty, _, _, _)
         | UnOp(_, ty, _, _)
         | Apply(_, ty, _, _)
@@ -80,17 +88,20 @@ module Expr = struct
     let rec convert = function
         | LambdaLift.Expr.Let(info, ty, arg, x, y) ->
             Let(info, ty, arg, (convert x), (convert y))
-        | LambdaLift.Expr.LetTuple(info, ty, args, x, y) ->
-            LetTuple(info, ty, args, (convert x), (convert y))
         | LambdaLift.Expr.If(info, ty, x, y, z) ->
             If(info, ty, (convert x), (convert y), (convert z))
-        | LambdaLift.Expr.Tuple(info, ty, xs) ->
+        | LambdaLift.Expr.AllocTuple(info, ty, tag, xs) ->
             let rec loop acc = function
-                | [] -> Tuple(info, ty, List.rev acc)
+                | [] -> AllocTuple(info, ty, tag, List.rev acc)
                 | x :: xs -> lift_var (convert x)
                                         (fun v -> loop (v :: acc) xs)
             in
             loop [] xs
+        | LambdaLift.Expr.GetField(info, ty, num, x) ->
+            lift_var (convert x) (fun v -> GetField(info, ty, num, v))
+        | LambdaLift.Expr.Case(info, ty, n, opts) ->
+            let opts = List.map (fun (tag, x) -> tag, convert x) opts in
+            Case(info, ty, n, opts)
         | LambdaLift.Expr.BinOp(info, ty, x, op, y) ->
             BinOp(info, ty, (convert x), op, (convert y))
         | LambdaLift.Expr.UnOp(info, ty, op, x) ->
@@ -142,10 +153,10 @@ module Expr = struct
 end;;
 
 type t =
-    | TopFun of Info.t * Type.t * Common.Var.t * Common.Arg.t list * Expr.t
-    | TopVar of Info.t * Type.t * Common.Var.t * Expr.t
-    | TopForward of Info.t * Type.t * Common.Var.t * int
-    | TopExpr of Info.t * Type.t * Expr.t
+    | TopFun of Info.t * type_t * Common.Var.t * Common.Arg.t list * Expr.t
+    | TopVar of Info.t * type_t * Common.Var.t * Expr.t
+    | TopForward of Info.t * type_t * Common.Var.t * int
+    | TopExpr of Info.t * type_t * Expr.t
     with sexp
 ;;
 

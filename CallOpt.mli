@@ -16,28 +16,34 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 *)
 
+type type_t = Common.Var.t Type.t with sexp;;
+
+type tag_t = int with sexp;;
+
 module InnerExpr : sig
     type t =
-        | Let of Info.t * Type.t * Common.Arg.t * t * t
-        | LetTuple of Info.t * Type.t * Common.Arg.t list * t * t
-        | If of Info.t * Type.t * t * t * t
-        | Tuple of Info.t * Type.t * ((Type.t * Common.Var.t) list)
-        | BinOp of Info.t * Type.t * t * Common.BinOp.t * t
-        | UnOp of Info.t * Type.t * Common.UnOp.t * t
-        | InnerApply of Info.t * Type.t * (Type.t * Common.Var.t)
-                            * ((Type.t * Common.Var.t) list)
-        | InnerSafeApply of Info.t * Type.t * (Type.t * Common.Var.t) * int
-                                * ((Type.t * Common.Var.t) list)
-        | InnerCall of Info.t * Type.t * (Type.t * Common.Var.t)
-                                    * ((Type.t * Common.Var.t) list)
-        | Var of Info.t * Type.t * Common.Var.t
-        | Const of Info.t * Type.t * Common.Const.t
-        | CallExtern of Info.t * Type.t * Common.External.t
-                            * ((Type.t * Common.Var.t) list)
+        | Let of Info.t * type_t * Common.Arg.t * t * t
+        | If of Info.t * type_t * t * t * t
+        | AllocTuple of Info.t * type_t * tag_t * (type_t * Common.Var.t) list
+        | GetField of Info.t * type_t * int * (type_t * Common.Var.t)
+        | Case of Info.t * type_t * (type_t * Common.Var.t)
+                    * ((tag_t * t) list)
+        | BinOp of Info.t * type_t * t * Common.BinOp.t * t
+        | UnOp of Info.t * type_t * Common.UnOp.t * t
+        | InnerApply of Info.t * type_t * (type_t * Common.Var.t)
+                            * ((type_t * Common.Var.t) list)
+        | InnerSafeApply of Info.t * type_t * (type_t * Common.Var.t) * int
+                                * ((type_t * Common.Var.t) list)
+        | InnerCall of Info.t * type_t * (type_t * Common.Var.t)
+                                    * ((type_t * Common.Var.t) list)
+        | Var of Info.t * type_t * Common.Var.t
+        | Const of Info.t * type_t * Common.Const.t
+        | CallExtern of Info.t * type_t * Common.Var.t Common.External.t
+                            * ((type_t * Common.Var.t) list)
         with sexp
     ;;
 
-    val get_type : t -> Type.t;;
+    val get_type : t -> type_t;;
 
 end;;
 
@@ -45,26 +51,27 @@ module TailExpr : sig
 
     type t =
         | Return of InnerExpr.t
-        | Let of Info.t * Type.t * Common.Arg.t * InnerExpr.t * t
-        | LetTuple of Info.t * Type.t * Common.Arg.t list * InnerExpr.t * t
-        | If of Info.t * Type.t * InnerExpr.t * t * t
-        | TailCall of Info.t * Type.t * (Type.t * Common.Var.t)
-                                        * ((Type.t * Common.Var.t) list)
-        | TailCallExtern of Info.t * Type.t * Common.External.t
-                            * ((Type.t * Common.Var.t) list)
+        | Let of Info.t * type_t * Common.Arg.t * InnerExpr.t * t
+        | If of Info.t * type_t * InnerExpr.t * t * t
+        | Case of Info.t * type_t * (type_t * Common.Var.t)
+                    * ((tag_t * t) list)
+        | TailCall of Info.t * type_t * (type_t * Common.Var.t)
+                                        * ((type_t * Common.Var.t) list)
+        | TailCallExtern of Info.t * type_t * Common.Var.t Common.External.t
+                            * ((type_t * Common.Var.t) list)
         with sexp
 
     ;;
 
-    val get_type : t -> Type.t;;
+    val get_type : t -> type_t;;
 
 end;;
 
 type t =
-    | TopFun of Info.t * Type.t * Common.Var.t * Common.Arg.t list * TailExpr.t
-    | TopVar of Info.t * Type.t * Common.Var.t * InnerExpr.t
-    | TopForward of Info.t * Type.t * Common.Var.t * int
-    | TopExpr of Info.t * Type.t * InnerExpr.t
+    | TopFun of Info.t * type_t * Common.Var.t * Common.Arg.t list * TailExpr.t
+    | TopVar of Info.t * type_t * Common.Var.t * InnerExpr.t
+    | TopForward of Info.t * type_t * Common.Var.t * int
+    | TopExpr of Info.t * type_t * InnerExpr.t
     with sexp
 ;;
 

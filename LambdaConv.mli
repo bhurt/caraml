@@ -16,32 +16,38 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 *)
 
+type type_t = Common.Var.t Type.t with sexp;;
+
+type tag_t = int with sexp;;
+
 module Expr : sig
 
-    type lambda = Info.t * Type.t * Common.Var.t * (Common.Arg.t list) * t
+    type lambda = Info.t * type_t * Common.Var.t * (Common.Arg.t list) * t
     and t =
-        | Let of Info.t * Type.t * Common.Arg.t * t * t
-        | LetTuple of Info.t * Type.t * Common.Arg.t list * t * t
-        | LetFn of Info.t * Type.t * lambda * t
-        | LetRec of Info.t * Type.t * (lambda list) * t
-        | If of Info.t * Type.t * t * t * t
-        | Tuple of Info.t * Type.t * t list
-        | BinOp of Info.t * Type.t * t * Common.BinOp.t * t
-        | UnOp of Info.t * Type.t * Common.UnOp.t * t
-        | Apply of Info.t * Type.t * t * t
-        | Var of Info.t * Type.t * Common.Var.t
-        | Const of Info.t * Type.t * Common.Const.t
+        | Let of Info.t * type_t * Common.Arg.t * t * t
+        | LetFn of Info.t * type_t * lambda * t
+        | LetRec of Info.t * type_t * (lambda list) * t
+        | If of Info.t * type_t * t * t * t
+        | AllocTuple of Info.t * type_t * tag_t * (t list)
+        | GetField of Info.t * type_t * int * t
+        | Case of Info.t * type_t * (type_t * Common.Var.t)
+                        * ((tag_t * t) list)
+        | BinOp of Info.t * type_t * t * Common.BinOp.t * t
+        | UnOp of Info.t * type_t * Common.UnOp.t * t
+        | Apply of Info.t * type_t * t * t
+        | Var of Info.t * type_t * Common.Var.t
+        | Const of Info.t * type_t * Common.Const.t
         with sexp
     ;;
 
 end;;
 
 type t =
-    | Top of Info.t * Type.t * Common.Var.t option * Expr.t
-    | TopFn of Info.t * Type.t * Expr.lambda
+    | Top of Info.t * type_t * Common.Var.t option * Expr.t
+    | TopFn of Info.t * type_t * Expr.lambda
     | TopRec of Info.t * (Expr.lambda list)
-    | Extern of Info.t * Common.Var.t * Common.External.t
+    | Extern of Info.t * Common.Var.t * Common.Var.t Common.External.t
     with sexp
 ;;
 
-val convert : Alpha.t -> t;;
+val convert : MatchReduce.t -> t;;

@@ -18,32 +18,38 @@
 
 open Sexplib.Conv;;
 
+type type_t = Common.Var.t Type.t with sexp;;
+
+type tag_t = int with sexp;;
+
 module Expr = struct
 
-    type lambda = Info.t * Type.t * Common.Var.t * (Common.Arg.t list) * t
+    type lambda = Info.t * type_t * Common.Var.t * (Common.Arg.t list) * t
     and t =
-        | Let of Info.t * Type.t * Common.Arg.t * t * t
-        | LetTuple of Info.t * Type.t * Common.Arg.t list * t * t
-        | LetFn of Info.t * Type.t * lambda * t
-        | LetRec of Info.t * Type.t * (lambda list) * t
-        | If of Info.t * Type.t * t * t * t
-        | Tuple of Info.t * Type.t * t list
-        | BinOp of Info.t * Type.t * t * Common.BinOp.t * t
-        | UnOp of Info.t * Type.t * Common.UnOp.t * t
-        | Apply of Info.t * Type.t * t * t
-        | Var of Info.t * Type.t * Common.Var.t
-        | Const of Info.t * Type.t * Common.Const.t
+        | Let of Info.t * type_t * Common.Arg.t * t * t
+        | LetFn of Info.t * type_t * lambda * t
+        | LetRec of Info.t * type_t * (lambda list) * t
+        | If of Info.t * type_t * t * t * t
+        | AllocTuple of Info.t * type_t * tag_t * (t list)
+        | GetField of Info.t * type_t * int * t
+        | Case of Info.t * type_t * (type_t * Common.Var.t)
+                        * ((tag_t * t) list)
+        | BinOp of Info.t * type_t * t * Common.BinOp.t * t
+        | UnOp of Info.t * type_t * Common.UnOp.t * t
+        | Apply of Info.t * type_t * t * t
+        | Var of Info.t * type_t * Common.Var.t
+        | Const of Info.t * type_t * Common.Const.t
         with sexp
     ;;
 
     let rec flatten_lambdas args = function
-        | Alpha.Expr.Lambda(_, _, args2, y) ->
+        | MatchReduce.Expr.Lambda(_, _, args2, y) ->
             flatten_lambdas (List.append args args2) y
         | y -> args, y
     ;;
 
     let rec convert = function
-        | Alpha.Expr.Lambda(info, ty, args, x) ->
+        | MatchReduce.Expr.Lambda(info, ty, args, x) ->
             let args, y = flatten_lambdas args x in
             let name = Common.Var.generate () in
             let y = convert y in
@@ -51,8 +57,8 @@ module Expr = struct
                     (info, ty, name, args, y),
                     Var(info, ty, name))
 
-        | Alpha.Expr.Let(info, ty, arg,
-                            Alpha.Expr.Lambda(info', ty', args, x),
+        | MatchReduce.Expr.Let(info, ty, arg,
+                            MatchReduce.Expr.Lambda(info', ty', args, x),
                             y)
         ->
             begin
@@ -67,45 +73,48 @@ module Expr = struct
                     convert y
             end
 
-        | Alpha.Expr.Let(info, ty, arg, x, y) ->
+        | MatchReduce.Expr.Let(info, ty, arg, x, y) ->
             let x = convert x in
             let y = convert y in
             Let(info, ty, arg, x, y)
 
-        | Alpha.Expr.LetTuple(info, ty, args, x, y) ->
-            let x = convert x in
-            let y = convert y in
-            LetTuple(info, ty, args, x, y)
-
-        | Alpha.Expr.LetRec(info, ty, fns, x) ->
+        | MatchReduce.Expr.LetRec(info, ty, fns, x) ->
             let fns = List.map convert_lambda fns in
             let x = convert x in
             LetRec(info, ty, fns, x)
 
-        | Alpha.Expr.If(info, ty, x, y, z) ->
+        | MatchReduce.Expr.If(info, ty, x, y, z) ->
             let x = convert x in
             let y = convert y in
             let z = convert z in
             If(info, ty, x, y, z)
 
-        | Alpha.Expr.Tuple(info, ty, xs) ->
+        | MatchReduce.Expr.AllocTuple(info, ty, tag, xs) ->
             let xs = List.map convert xs in
-            Tuple(info, ty, xs)
+            AllocTuple(info, ty, tag, xs)
 
-        | Alpha.Expr.BinOp(info, ty, x, op, y) ->
+        | MatchReduce.Expr.GetField(info, ty, num, x) ->
+            let x = convert x in
+            GetField(info, ty, num, x)
+
+        | MatchReduce.Expr.Case(info, ty, n, opts) ->
+            let opts = List.map (fun (tag, x) -> tag, convert x) opts in
+            Case(info, ty, n, opts)
+
+        | MatchReduce.Expr.BinOp(info, ty, x, op, y) ->
             let x = convert x in
             let y = convert y in
             BinOp(info, ty, x, op, y)
-        | Alpha.Expr.UnOp(info, ty, op, x) ->
+        | MatchReduce.Expr.UnOp(info, ty, op, x) ->
             let x = convert x in
             UnOp(info, ty, op, x)
-        | Alpha.Expr.Apply(info, ty, x, y) ->
+        | MatchReduce.Expr.Apply(info, ty, x, y) ->
             let x = convert x in
             let y = convert y in
             Apply(info, ty, x, y)
-        | Alpha.Expr.Var(info, ty, v) ->
+        | MatchReduce.Expr.Var(info, ty, v) ->
             Var(info, ty, v)
-        | Alpha.Expr.Const(info, ty, c) ->
+        | MatchReduce.Expr.Const(info, ty, c) ->
             Const(info, ty, c)
 
     and convert_lambda (info, ty, name, args, x) =
@@ -117,18 +126,18 @@ module Expr = struct
 end;;
 
 type t =
-    | Top of Info.t * Type.t * Common.Var.t option * Expr.t
-    | TopFn of Info.t * Type.t * Expr.lambda
+    | Top of Info.t * type_t * Common.Var.t option * Expr.t
+    | TopFn of Info.t * type_t * Expr.lambda
     | TopRec of Info.t * (Expr.lambda list)
-    | Extern of Info.t * Common.Var.t * Common.External.t
+    | Extern of Info.t * Common.Var.t * Common.Var.t Common.External.t
     with sexp
 ;;
 
 let convert = function
-    | Alpha.Top(info, ty, arg, x) ->
+    | MatchReduce.Top(info, ty, arg, x) ->
         begin
             match x with
-            | Alpha.Expr.Lambda(info', ty', args, x) ->
+            | MatchReduce.Expr.Lambda(info', ty', args, x) ->
                 let args, x = Expr.flatten_lambdas args x in
                 let x = Expr.convert x in
                 let name = match arg with
@@ -140,10 +149,10 @@ let convert = function
                 let x = Expr.convert x in
                 Top(info, ty, arg, x)
         end
-    | Alpha.TopRec(info, fns) ->
+    | MatchReduce.TopRec(info, fns) ->
         let fns = List.map Expr.convert_lambda fns in
         TopRec(info, fns)
-    | Alpha.Extern(info, name, xtrn) -> Extern(info, name, xtrn)
+    | MatchReduce.Extern(info, name, xtrn) -> Extern(info, name, xtrn)
 ;;
 
 

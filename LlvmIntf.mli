@@ -9,7 +9,7 @@ val intptr_type : Llvm.lltype;;
 val ptr_type : Llvm.lltype -> Llvm.lltype;;
 val func_type : Llvm.lltype list -> Llvm.lltype -> Llvm.lltype;;
 val struct_type : Llvm.lltype list -> Llvm.lltype;;
-val llvm_of_type : Type.t -> Llvm.lltype;;
+val llvm_of_type : 'a Type.t -> Llvm.lltype;;
 
 val int_const : int -> Llvm.llvalue;;
 val int64_const : Int64.t -> Llvm.llvalue;;
@@ -24,7 +24,7 @@ val float_init : Llvm.llvalue;;
 val bool_init : Llvm.llvalue;;
 val unit_init : Llvm.llvalue;;
 val ptr_init : Llvm.llvalue;;
-val init_of_type : Type.t -> Llvm.llvalue;;
+val init_of_type : 'a Type.t -> Llvm.llvalue;;
 
 
 val mdl : unit -> Llvm.llmodule;;
@@ -112,14 +112,14 @@ val box_bool : block_t -> Llvm.llvalue -> Llvm.llvalue;;
 val box_int : 'a -> 'b -> 'b;;
 val box_float : block_t -> Llvm.llvalue -> Llvm.llvalue;;
 val box_ptr : block_t -> Llvm.llvalue -> Llvm.llvalue;;
-val box : Type.t -> block_t -> Llvm.llvalue -> Llvm.llvalue;;
+val box : 'a Type.t -> block_t -> Llvm.llvalue -> Llvm.llvalue;;
 
 val unbox_unit : block_t -> Llvm.llvalue -> Llvm.llvalue;;
 val unbox_bool : block_t -> Llvm.llvalue -> Llvm.llvalue;;
 val unbox_int : block_t -> Llvm.llvalue -> Llvm.llvalue;;
 val unbox_float : block_t -> Llvm.llvalue -> Llvm.llvalue;;
 val unbox_ptr : block_t -> Llvm.llvalue -> Llvm.llvalue;;
-val unbox : Type.t -> block_t -> Llvm.llvalue -> Llvm.llvalue;;
+val unbox : 'a Type.t -> block_t -> Llvm.llvalue -> Llvm.llvalue;;
 
 val bitcast : block_t -> Llvm.llvalue -> Llvm.lltype -> Llvm.llvalue;;
 val ptr_cmp_lt : block_t -> Llvm.llvalue -> Llvm.llvalue -> Llvm.llvalue;;

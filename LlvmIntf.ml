@@ -46,6 +46,7 @@ let llvm_of_type = function
     | Type.Base(Type.Boolean) -> bool_type
     | Type.Base(Type.Float) -> float_type
     | Type.Arrow(_, _)
+    | Type.Named(_)
     | Type.Tuple(_) -> intptr_type
 ;;
 
@@ -77,6 +78,7 @@ let init_of_type = function
     | Type.Base(Type.Unit) -> unit_init
     | Type.Base(Type.Float) -> float_init
     | Type.Arrow(_, _)
+    | Type.Named(_)
     | Type.Tuple(_) -> ptr_init
 ;;
 
@@ -363,6 +365,7 @@ let box = function
     | Type.Base(Type.Boolean) -> box_bool
     | Type.Base(Type.Float) -> box_float
     | Type.Arrow(_, _)
+    | Type.Named(_)
     | Type.Tuple(_) -> box_ptr
 ;;
 
@@ -388,6 +391,7 @@ let unbox = function
     | Type.Base(Type.Boolean) -> unbox_bool
     | Type.Base(Type.Float) -> unbox_float
     | Type.Arrow(_, _)
+    | Type.Named(_)
     | Type.Tuple(_) -> unbox_ptr
 ;;
 

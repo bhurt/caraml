@@ -42,8 +42,8 @@ module InnerExpr = struct
             LlvmIntf.load_global block (Common.Var.to_string name)
     ;;
 
-    let write_tuple block names ptr xs =
-        let tag_word = LlvmUtils.make_tag_word ~tag:0 ~len:(List.length xs)
+    let write_tuple tag block names ptr xs =
+        let tag_word = LlvmUtils.make_tag_word ~tag ~len:(List.length xs)
                             (List.map fst xs)
         in
         let f i (ty, v) =
@@ -107,11 +107,6 @@ module InnerExpr = struct
             in
             assemble names b y
 
-        | CallOpt.InnerExpr.LetTuple(_, _, args, x, y)->
-            let (r, b) = assemble names start_block x in
-            let names = load_members b names r args in
-            assemble names b y
-
         | CallOpt.InnerExpr.If(_, _, x, y, z) ->
             let (r, b) = assemble names start_block x in
 
@@ -132,15 +127,46 @@ module InnerExpr = struct
             let _ = LlvmIntf.br false_b end_block in
             (end_r, end_block)
 
-        | CallOpt.InnerExpr.Tuple(info, ty, xs) ->
+        | CallOpt.InnerExpr.AllocTuple(info, ty, tag, xs) ->
             if (List.length xs) > 32 then
                 raise (Error.Compiler_error(oversized_tuple,info))
             else
                 let (ptr, b) = LlvmUtils.heap_alloc start_block
                                             (List.length xs)
                 in
-                let _ = write_tuple b names ptr xs in
+                let _ = write_tuple tag b names ptr xs in
                 (ptr, b)
+
+        | CallOpt.InnerExpr.GetField(info, ty, num, (ty', v)) ->
+            let res = get_name start_block names v in
+            (LlvmUtils.get_member start_block res ty num), start_block
+
+        | CallOpt.InnerExpr.Case(info, ty, (ty', v), opts) ->
+            let default = LlvmIntf.new_block () in
+            let _ = LlvmIntf.unreachable default in
+            let test = get_name start_block names v in
+            let switch = LlvmIntf.switch start_block test ~default
+                            (List.length opts)
+            in
+            let res =
+                List.map
+                    (fun (tag, x) ->
+                        let tag = LlvmIntf.int_const tag in
+                        let start_block = LlvmIntf.new_block () in
+                        let _ = LlvmIntf.add_case ~switch ~tag 
+                                    ~dest:start_block
+                        in
+                        assemble names start_block x)
+                    opts
+            in
+            let end_block = LlvmIntf.new_block () in
+            let end_r = LlvmIntf.phi end_block res in
+            let _ = List.iter
+                        (fun (_, b) ->
+                            let _ = LlvmIntf.br b end_block in
+                            ())
+            in
+            end_r, end_block
 
         | CallOpt.InnerExpr.BinOp(_, _, x, op, y) ->
             let (x, b) = assemble names start_block x in
@@ -243,11 +269,6 @@ module TailExpr = struct
             in
             assemble names b y
 
-        | CallOpt.TailExpr.LetTuple(_, _, args, x, y)->
-            let (r, b) = InnerExpr.assemble names start_block x in
-            let names = InnerExpr.load_members b names r args in
-            assemble names b y
-
         | CallOpt.TailExpr.If(_, _, x, y, z) ->
             let (r, b) = InnerExpr.assemble names start_block x in
             let true_start = LlvmIntf.new_block () in
@@ -258,6 +279,23 @@ module TailExpr = struct
                         ~on_true:true_start ~on_false:false_start
             in
             ()
+
+        | CallOpt.TailExpr.Case(info, ty, (ty', v), opts) ->
+            let default = LlvmIntf.new_block () in
+            let _ = LlvmIntf.unreachable default in
+            let test = InnerExpr.get_name start_block names v in
+            let switch = LlvmIntf.switch start_block test ~default
+                            (List.length opts)
+            in
+            List.iter
+                (fun (tag, x) ->
+                    let tag = LlvmIntf.int_const tag in
+                    let start_block = LlvmIntf.new_block () in
+                    let _ = LlvmIntf.add_case ~switch ~tag 
+                                ~dest:start_block
+                    in
+                    assemble names start_block x)
+                opts
 
         | CallOpt.TailExpr.TailCall(_, _, f, xs) ->
             let xs = List.map (fun x -> InnerExpr.get_name start_block

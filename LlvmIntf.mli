@@ -63,6 +63,12 @@ val br : block_t -> block_t -> Llvm.llvalue;;
 val cond_br : block_t -> test:Llvm.llvalue
                     -> on_true:block_t -> on_false:block_t -> Llvm.llvalue;;
 
+val switch : block_t -> Llvm.llvalue -> default:block_t -> int
+                    -> Llvm.llvalue;;
+val add_case : switch:Llvm.llvalue -> tag:Llvm.llvalue -> dest:block_t
+                    -> unit;;
+val unreachable : block_t -> Llvm.llvalue;;
+
 val add : block_t -> Llvm.llvalue -> Llvm.llvalue -> Llvm.llvalue;;
 val sub : block_t -> Llvm.llvalue -> Llvm.llvalue -> Llvm.llvalue;;
 val mul : block_t -> Llvm.llvalue -> Llvm.llvalue -> Llvm.llvalue;;

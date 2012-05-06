@@ -252,6 +252,18 @@ let cond_br b ~test ~on_true ~on_false =
     Llvm.build_cond_br test on_true.blk on_false.blk b.builder
 ;;
 
+let switch b test ~default num_cases =
+    Llvm.build_switch test default.blk num_cases b.builder
+;;
+
+let add_case ~switch ~tag ~dest =
+    Llvm.add_case switch tag dest.blk
+;;
+
+let unreachable b =
+    Llvm.build_unreachable b.builder
+;;
+
 let binop op b x y =
     let name = alloc_reg_name () in
     op x y name b.builder

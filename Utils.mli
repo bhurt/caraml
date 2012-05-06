@@ -29,5 +29,10 @@ val range : ?start:int -> ?step:int -> length:int -> int list;;
 val mapi : ?start:int -> ?step:int -> (int -> 'a -> 'b) -> 'a list -> 'b list;;
 val fold_lefti : ?start:int -> ?step:int
                     -> (int -> 'a -> 'b -> 'a) -> 'a -> 'b list -> 'a;;
+val fold_righti : ?start:int -> ?step:int
+                    -> (int -> 'a -> 'b -> 'b) -> 'a list -> 'b -> 'b;;
+val fold_right2i : ?start:int -> ?step:int
+                    -> (int -> 'a -> 'b -> 'c -> 'c) -> 'a list
+                    -> 'b list -> 'c -> 'c;;
 val freduce : ('a -> 'a) list -> 'a -> 'a;;
 val map_accum : ('a -> 'b -> 'a * 'c) -> 'a -> ('b list) -> ('a * ('c list));;

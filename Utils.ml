@@ -146,6 +146,24 @@ let fold_lefti ?(start=0) ?(step=1) f init lst =
     loop start init lst
 ;;
 
+let fold_righti ?(start=0) ?(step=1) f lst init =
+    let rec loop i acc = function
+        | [] -> acc
+        | x :: xs -> f i x (loop (i + step) acc xs)
+    in
+    loop start init lst
+;;
+
+let fold_right2i ?(start=0) ?(step=1) f alst blst init =
+    let rec loop i acc xs ys =
+        match (xs, ys) with
+        | [], [] -> acc
+        | (x :: xs), (y :: ys) -> f i x y (loop (i + step) acc xs ys)
+        | _,_ -> failwith "fold_right2i: lists of unequal lengths"
+    in
+    loop start init alst blst
+;;
+
 let rec freduce fs init =
     match fs with
     | [] -> init

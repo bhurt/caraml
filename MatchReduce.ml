@@ -18,27 +18,25 @@
 
 open Sexplib.Conv;;
 
-type type_t = Common.Var.t Type.t with sexp;;
-
-type tag_t = int with sexp;;
-
 module Expr = struct
 
-    type lambda = Info.t * type_t * Common.Var.t
+    type lambda = Info.t * Common.VarType.t * Common.Var.t
                             * (Common.Arg.t list) * t
     and t =
-        | Lambda of Info.t * type_t * Common.Arg.t list * t
-        | Let of Info.t * type_t * Common.Arg.t * t * t
-        | LetRec of Info.t * type_t * (lambda list) * t
-        | If of Info.t * type_t * t * t * t
-        | AllocTuple of Info.t * type_t * tag_t * (t list)
-        | GetField of Info.t * type_t * int * t
-        | Case of Info.t * type_t * (type_t * Common.Var.t) * ((tag_t * t) list)
-        | BinOp of Info.t * type_t * t * Common.BinOp.t * t
-        | UnOp of Info.t * type_t * Common.UnOp.t * t
-        | Apply of Info.t * type_t * t * t
-        | Var of Info.t * type_t * Common.Var.t
-        | Const of Info.t * type_t * Common.Const.t
+        | Lambda of Info.t * Common.VarType.t * Common.Arg.t list * t
+        | Let of Info.t * Common.VarType.t * Common.Arg.t * t * t
+        | LetRec of Info.t * Common.VarType.t * (lambda list) * t
+        | If of Info.t * Common.VarType.t * t * t * t
+        | AllocTuple of Info.t * Common.VarType.t * Common.Tag.t * (t list)
+        | GetField of Info.t * Common.VarType.t * int * t
+        | Case of Info.t * Common.VarType.t
+                    * (Common.VarType.t * Common.Var.t)
+                    * ((Common.Tag.t * t) list)
+        | BinOp of Info.t * Common.VarType.t * t * Common.BinOp.t * t
+        | UnOp of Info.t * Common.VarType.t * Common.UnOp.t * t
+        | Apply of Info.t * Common.VarType.t * t * t
+        | Var of Info.t * Common.VarType.t * Common.Var.t
+        | Const of Info.t * Common.VarType.t * Common.Const.t
         with sexp
     ;;
 
@@ -117,7 +115,7 @@ module Expr = struct
                                 bindings))
         | Alpha.Expr.Tuple(info, ty, xs) ->
             let xs = List.map (convert tagmap) xs in
-            AllocTuple(info, ty, 0, xs)
+            AllocTuple(info, ty, (Common.Tag.of_int 0), xs)
         | Alpha.Expr.BinOp(info, ty, x, op, y) ->
             let x = convert tagmap x in
             let y = convert tagmap y in
@@ -135,7 +133,7 @@ module Expr = struct
 end;;
 
 type t =
-    | Top of Info.t * type_t * Common.Var.t option * Expr.t
+    | Top of Info.t * Common.VarType.t * Common.Var.t option * Expr.t
     | TopRec of Info.t * (Expr.lambda list)
     | Extern of Info.t * Common.Var.t * Common.Var.t Common.External.t
     with sexp
@@ -158,7 +156,7 @@ let convert tagmap = function
         let tagmap =
             Utils.fold_lefti
                 (fun i tagmap (_, n, _) ->
-                    Common.Var.Map.add n i tagmap)
+                    Common.Var.Map.add n (Common.Tag.of_int i) tagmap)
                 tagmap
                 opts
         in

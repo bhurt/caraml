@@ -18,27 +18,24 @@
 
 open Sexplib.Conv;;
 
-type type_t = Common.Var.t Type.t with sexp;;
-
-type tag_t = int with sexp;;
-
 module Expr = struct
 
-    type lambda = Info.t * type_t * Common.Var.t * (Common.Arg.t list) * t
+    type lambda = Info.t * Common.VarType.t * Common.Var.t
+                    * (Common.Arg.t list) * t
     and t =
-        | Let of Info.t * type_t * Common.Arg.t * t * t
-        | LetFn of Info.t * type_t * lambda * t
-        | LetRec of Info.t * type_t * (lambda list) * t
-        | If of Info.t * type_t * t * t * t
-        | AllocTuple of Info.t * type_t * tag_t * (t list)
-        | GetField of Info.t * type_t * int * t
-        | Case of Info.t * type_t * (type_t * Common.Var.t)
-                        * ((tag_t * t) list)
-        | BinOp of Info.t * type_t * t * Common.BinOp.t * t
-        | UnOp of Info.t * type_t * Common.UnOp.t * t
-        | Apply of Info.t * type_t * t * t
-        | Var of Info.t * type_t * Common.Var.t
-        | Const of Info.t * type_t * Common.Const.t
+        | Let of Info.t * Common.VarType.t * Common.Arg.t * t * t
+        | LetFn of Info.t * Common.VarType.t * lambda * t
+        | LetRec of Info.t * Common.VarType.t * (lambda list) * t
+        | If of Info.t * Common.VarType.t * t * t * t
+        | AllocTuple of Info.t * Common.VarType.t * Common.Tag.t * (t list)
+        | GetField of Info.t * Common.VarType.t * int * t
+        | Case of Info.t * Common.VarType.t * (Common.VarType.t * Common.Var.t)
+                        * ((Common.Tag.t * t) list)
+        | BinOp of Info.t * Common.VarType.t * t * Common.BinOp.t * t
+        | UnOp of Info.t * Common.VarType.t * Common.UnOp.t * t
+        | Apply of Info.t * Common.VarType.t * t * t
+        | Var of Info.t * Common.VarType.t * Common.Var.t
+        | Const of Info.t * Common.VarType.t * Common.Const.t
         with sexp
     ;;
 
@@ -126,8 +123,8 @@ module Expr = struct
 end;;
 
 type t =
-    | Top of Info.t * type_t * Common.Var.t option * Expr.t
-    | TopFn of Info.t * type_t * Expr.lambda
+    | Top of Info.t * Common.VarType.t * Common.Var.t option * Expr.t
+    | TopFn of Info.t * Common.VarType.t * Expr.lambda
     | TopRec of Info.t * (Expr.lambda list)
     | Extern of Info.t * Common.Var.t * Common.Var.t Common.External.t
     with sexp

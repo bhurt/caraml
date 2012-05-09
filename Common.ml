@@ -173,3 +173,25 @@ module External = struct
 
 
 end;;
+
+module StringType = struct
+
+    type t = string Type.t with sexp;;
+
+end;;
+
+module VarType = struct
+
+    type t = Var.t Type.t with sexp;;
+
+end;;
+
+module Tag = struct
+
+    type t = int with sexp;;
+
+    let of_int (i : int) : t = i;;
+    let to_int (i : t) : int = i;;
+
+end;;
+

@@ -18,33 +18,36 @@
 
 open Sexplib.Conv;;
 
-type type_t = Common.Var.t Type.t with sexp;;
-
-type tag_t = int with sexp;;
-
 module InnerExpr = struct
 
     (* An inner expression is any expression not in the tail position *)
 
     type t =
-        | Let of Info.t * type_t * Common.Arg.t * t * t
-        | If of Info.t * type_t * t * t * t
-        | AllocTuple of Info.t * type_t * tag_t * (type_t * Common.Var.t) list
-        | GetField of Info.t * type_t * int * (type_t * Common.Var.t)
-        | Case of Info.t * type_t * (type_t * Common.Var.t)
-                    * ((tag_t * t) list)
-        | BinOp of Info.t * type_t * t * Common.BinOp.t * t
-        | UnOp of Info.t * type_t * Common.UnOp.t * t
-        | InnerApply of Info.t * type_t * (type_t * Common.Var.t)
-                            * ((type_t * Common.Var.t) list)
-        | InnerSafeApply of Info.t * type_t * (type_t * Common.Var.t) * int
-                                * ((type_t * Common.Var.t) list)
-        | InnerCall of Info.t * type_t * (type_t * Common.Var.t)
-                                    * ((type_t * Common.Var.t) list)
-        | Var of Info.t * type_t * Common.Var.t
-        | Const of Info.t * type_t * Common.Const.t
-        | CallExtern of Info.t * type_t * Common.Var.t Common.External.t
-                            * ((type_t * Common.Var.t) list)
+        | Let of Info.t * Common.VarType.t * Common.Arg.t * t * t
+        | If of Info.t * Common.VarType.t * t * t * t
+        | AllocTuple of Info.t * Common.VarType.t * Common.Tag.t
+                            * (Common.VarType.t * Common.Var.t) list
+        | GetField of Info.t * Common.VarType.t * int
+                            * (Common.VarType.t * Common.Var.t)
+        | Case of Info.t * Common.VarType.t
+                        * (Common.VarType.t * Common.Var.t)
+                        * ((Common.Tag.t * t) list)
+        | BinOp of Info.t * Common.VarType.t * t * Common.BinOp.t * t
+        | UnOp of Info.t * Common.VarType.t * Common.UnOp.t * t
+        | InnerApply of Info.t * Common.VarType.t
+                            * (Common.VarType.t * Common.Var.t)
+                            * ((Common.VarType.t * Common.Var.t) list)
+        | InnerSafeApply of Info.t * Common.VarType.t
+                                * (Common.VarType.t * Common.Var.t) * int
+                                * ((Common.VarType.t * Common.Var.t) list)
+        | InnerCall of Info.t * Common.VarType.t
+                            * (Common.VarType.t * Common.Var.t)
+                            * ((Common.VarType.t * Common.Var.t) list)
+        | Var of Info.t * Common.VarType.t * Common.Var.t
+        | Const of Info.t * Common.VarType.t * Common.Const.t
+        | CallExtern of Info.t * Common.VarType.t
+                            * Common.Var.t Common.External.t
+                            * ((Common.VarType.t * Common.Var.t) list)
         with sexp
     ;;
 
@@ -92,7 +95,8 @@ module InnerExpr = struct
                         let name = Common.Var.generate () in
                         Let(info, ty, (call_ty, Some name),
                             InnerCall(info, call_ty, f, call_args),
-                            InnerApply(info, ty, (call_ty, name), apply_args))
+                            InnerApply(info, ty, (call_ty, name),
+                                                        apply_args))
                     else
                         InnerSafeApply(info, ty, f, nargs, xs)
                 with
@@ -131,14 +135,17 @@ module TailExpr = struct
 
     type t =
         | Return of InnerExpr.t
-        | Let of Info.t * type_t * Common.Arg.t * InnerExpr.t * t
-        | If of Info.t * type_t * InnerExpr.t * t * t
-        | Case of Info.t * type_t * (type_t * Common.Var.t)
-                    * ((tag_t * t) list)
-        | TailCall of Info.t * type_t * (type_t * Common.Var.t)
-                                        * ((type_t * Common.Var.t) list)
-        | TailCallExtern of Info.t * type_t * Common.Var.t Common.External.t
-                            * ((type_t * Common.Var.t) list)
+        | Let of Info.t * Common.VarType.t * Common.Arg.t * InnerExpr.t * t
+        | If of Info.t * Common.VarType.t * InnerExpr.t * t * t
+        | Case of Info.t * Common.VarType.t
+                    * (Common.VarType.t * Common.Var.t)
+                    * ((Common.Tag.t * t) list)
+        | TailCall of Info.t * Common.VarType.t
+                            * (Common.VarType.t * Common.Var.t)
+                            * ((Common.VarType.t * Common.Var.t) list)
+        | TailCallExtern of Info.t * Common.VarType.t
+                                * Common.Var.t Common.External.t
+                                * ((Common.VarType.t * Common.Var.t) list)
         with sexp
     ;;
 
@@ -172,10 +179,11 @@ module TailExpr = struct
 end;;
 
 type t =
-    | TopFun of Info.t * type_t * Common.Var.t * Common.Arg.t list * TailExpr.t
-    | TopVar of Info.t * type_t * Common.Var.t * InnerExpr.t
-    | TopForward of Info.t * type_t * Common.Var.t * int
-    | TopExpr of Info.t * type_t * InnerExpr.t
+    | TopFun of Info.t * Common.VarType.t * Common.Var.t
+                    * Common.Arg.t list * TailExpr.t
+    | TopVar of Info.t * Common.VarType.t * Common.Var.t * InnerExpr.t
+    | TopForward of Info.t * Common.VarType.t * Common.Var.t * int
+    | TopExpr of Info.t * Common.VarType.t * InnerExpr.t
     with sexp
 ;;
 

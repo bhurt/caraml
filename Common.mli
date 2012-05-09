@@ -111,4 +111,24 @@ module External : sig
 
 end;;
 
+module StringType : sig
+
+    type t = string Type.t with sexp;;
+
+end;;
+
+module VarType : sig
+
+    type t = Var.t Type.t with sexp;;
+
+end;;
+
+module Tag : sig
+
+    type t with sexp;;
+
+    val of_int : int -> t;;
+    val to_int : t -> int;;
+
+end;;
 

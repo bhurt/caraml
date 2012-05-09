@@ -18,8 +18,6 @@
 
 open Sexplib.Conv;;
 
-type type_t = string Type.t with sexp;;
-
 module Pattern = struct
 
     type t = Pattern of Info.t * string
@@ -29,9 +27,9 @@ end;;
 
 module Expr = struct
 
-    type arg = type_t * (string option) with sexp;;
+    type arg = Common.StringType.t * (string option) with sexp;;
 
-    type lambda = Info.t * string * (arg list) * type_t * t
+    type lambda = Info.t * string * (arg list) * Common.StringType.t * t
     and t =
         | Lambda of Info.t * (arg list) * t
         | Let of Info.t * (string option) * t * t
@@ -55,7 +53,7 @@ type t =
     | TopRec of Info.t * (Expr.lambda list)
     | Extern of Info.t * string * string Common.External.t
     | VariantDef of Info.t * string
-                        * ((Info.t * string * (type_t list)) list)
+                        * ((Info.t * string * (Common.StringType.t list)) list)
     with sexp
 ;;
 

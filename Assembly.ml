@@ -134,7 +134,7 @@ module InnerExpr = struct
                 let (ptr, b) = LlvmUtils.heap_alloc start_block
                                             (List.length xs)
                 in
-                let _ = write_tuple tag b names ptr xs in
+                let _ = write_tuple (Common.Tag.to_int tag) b names ptr xs in
                 (ptr, b)
 
         | CallOpt.InnerExpr.GetField(info, ty, num, (ty', v)) ->
@@ -151,7 +151,9 @@ module InnerExpr = struct
             let res =
                 List.map
                     (fun (tag, x) ->
-                        let tag = LlvmIntf.int_const tag in
+                        let tag =
+                            LlvmIntf.int_const (Common.Tag.to_int tag)
+                        in
                         let start_block = LlvmIntf.new_block () in
                         let _ = LlvmIntf.add_case ~switch ~tag 
                                     ~dest:start_block
@@ -289,7 +291,7 @@ module TailExpr = struct
             in
             List.iter
                 (fun (tag, x) ->
-                    let tag = LlvmIntf.int_const tag in
+                    let tag = LlvmIntf.int_const (Common.Tag.to_int tag) in
                     let start_block = LlvmIntf.new_block () in
                     let _ = LlvmIntf.add_case ~switch ~tag 
                                 ~dest:start_block

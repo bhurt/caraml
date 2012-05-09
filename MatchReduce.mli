@@ -16,41 +16,39 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 *)
 
-type type_t = Common.Var.t Type.t with sexp;;
-
-type tag_t = int with sexp;;
-
 module Expr : sig
 
-    type lambda = Info.t * type_t * Common.Var.t
+    type lambda = Info.t * Common.VarType.t * Common.Var.t
                             * (Common.Arg.t list) * t
     and t =
-        | Lambda of Info.t * type_t * Common.Arg.t list * t
-        | Let of Info.t * type_t * Common.Arg.t * t * t
-        | LetRec of Info.t * type_t * (lambda list) * t
-        | If of Info.t * type_t * t * t * t
-        | AllocTuple of Info.t * type_t * tag_t * (t list)
-        | GetField of Info.t * type_t * int * t
-        | Case of Info.t * type_t * (type_t * Common.Var.t)
-                                                * ((tag_t * t) list)
-        | BinOp of Info.t * type_t * t * Common.BinOp.t * t
-        | UnOp of Info.t * type_t * Common.UnOp.t * t
-        | Apply of Info.t * type_t * t * t
-        | Var of Info.t * type_t * Common.Var.t
-        | Const of Info.t * type_t * Common.Const.t
+        | Lambda of Info.t * Common.VarType.t * Common.Arg.t list * t
+        | Let of Info.t * Common.VarType.t * Common.Arg.t * t * t
+        | LetRec of Info.t * Common.VarType.t * (lambda list) * t
+        | If of Info.t * Common.VarType.t * t * t * t
+        | AllocTuple of Info.t * Common.VarType.t * Common.Tag.t * (t list)
+        | GetField of Info.t * Common.VarType.t * int * t
+        | Case of Info.t * Common.VarType.t
+                            * (Common.VarType.t * Common.Var.t)
+                            * ((Common.Tag.t * t) list)
+        | BinOp of Info.t * Common.VarType.t * t * Common.BinOp.t * t
+        | UnOp of Info.t * Common.VarType.t * Common.UnOp.t * t
+        | Apply of Info.t * Common.VarType.t * t * t
+        | Var of Info.t * Common.VarType.t * Common.Var.t
+        | Const of Info.t * Common.VarType.t * Common.Const.t
         with sexp
     ;;
 
 end;;
 
 type t =
-    | Top of Info.t * type_t * Common.Var.t option * Expr.t
+    | Top of Info.t * Common.VarType.t * Common.Var.t option * Expr.t
     | TopRec of Info.t * (Expr.lambda list)
     | Extern of Info.t * Common.Var.t * Common.Var.t Common.External.t
     with sexp
 ;;
 
 val convert :
-    tag_t Common.Var.Map.t -> Alpha.t -> (int Common.Var.Map.t * (t list))
+    Common.Tag.t Common.Var.Map.t -> Alpha.t
+        -> (Common.Tag.t Common.Var.Map.t * (t list))
 ;;
 

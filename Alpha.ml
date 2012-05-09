@@ -20,8 +20,6 @@ open Sexplib.Conv;;
 
 module StringMap = Map.Make(String);;
 
-type type_t = Common.Var.t Type.t with sexp;;
-
 let rec convert_type names = function
     | Type.Arrow(x, y) ->
         let x = convert_type names x in
@@ -38,21 +36,22 @@ let rec convert_type names = function
 
 module Expr = struct
 
-    type lambda = Info.t * type_t * Common.Var.t * (Common.Arg.t list) * t
+    type lambda = Info.t * Common.VarType.t * Common.Var.t
+                                            * (Common.Arg.t list) * t
     and t =
-        | Lambda of Info.t * type_t * Common.Arg.t list * t
-        | Let of Info.t * type_t * Common.Arg.t * t * t
-        | LetTuple of Info.t * type_t * Common.Arg.t list * t * t
-        | LetRec of Info.t * type_t * (lambda list) * t
-        | If of Info.t * type_t * t * t * t
-        | Match of Info.t * type_t * t *
+        | Lambda of Info.t * Common.VarType.t * Common.Arg.t list * t
+        | Let of Info.t * Common.VarType.t * Common.Arg.t * t * t
+        | LetTuple of Info.t * Common.VarType.t * Common.Arg.t list * t * t
+        | LetRec of Info.t * Common.VarType.t * (lambda list) * t
+        | If of Info.t * Common.VarType.t * t * t * t
+        | Match of Info.t * Common.VarType.t * t *
                     ((Info.t * Common.Var.t * (Common.Arg.t list) * t) list)
-        | Tuple of Info.t * type_t * t list
-        | BinOp of Info.t * type_t * t * Common.BinOp.t * t
-        | UnOp of Info.t * type_t * Common.UnOp.t * t
-        | Apply of Info.t * type_t * t * t
-        | Var of Info.t * type_t * Common.Var.t
-        | Const of Info.t * type_t * Common.Const.t
+        | Tuple of Info.t * Common.VarType.t * t list
+        | BinOp of Info.t * Common.VarType.t * t * Common.BinOp.t * t
+        | UnOp of Info.t * Common.VarType.t * Common.UnOp.t * t
+        | Apply of Info.t * Common.VarType.t * t * t
+        | Var of Info.t * Common.VarType.t * Common.Var.t
+        | Const of Info.t * Common.VarType.t * Common.Const.t
         with sexp
     ;;
 
@@ -182,11 +181,11 @@ module Expr = struct
 end;;
 
 type t =
-    | Top of Info.t * type_t * Common.Var.t option * Expr.t
+    | Top of Info.t * Common.VarType.t * Common.Var.t option * Expr.t
     | TopRec of Info.t * (Expr.lambda list)
     | Extern of Info.t * Common.Var.t * Common.Var.t Common.External.t
     | VariantDef of Info.t * Common.Var.t
-                        * ((Info.t * Common.Var.t * (type_t list)) list)
+                * ((Info.t * Common.Var.t * (Common.VarType.t list)) list)
     with sexp
 ;;
 

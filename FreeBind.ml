@@ -6,10 +6,10 @@ module FreeVars : sig
                         -> Common.Var.Set.t;;
 
     val free_vars : Common.Var.Set.t -> Expr.t
-                                -> type_t Common.Var.Map.t;;
+                                -> Common.VarType.t Common.Var.Map.t;;
 
     val free_vars_lambdas : Common.Var.Set.t -> Expr.lambda list
-                                -> type_t Common.Var.Map.t;;
+                                -> Common.VarType.t Common.Var.Map.t;;
 
 end = struct
 
@@ -81,10 +81,11 @@ end;;
 
 module ReplaceVars : sig
 
-    val replace_vars : (Info.t -> type_t -> Expr.t) Common.Var.Map.t
+    val replace_vars : (Info.t -> Common.VarType.t -> Expr.t) Common.Var.Map.t
                                         -> Expr.t -> Expr.t;;
 
-    val replace_vars_lambda : (Info.t -> type_t -> Expr.t) Common.Var.Map.t
+    val replace_vars_lambda :
+        (Info.t -> Common.VarType.t -> Expr.t) Common.Var.Map.t
                                     -> Expr.lambda -> Expr.lambda;;
 
 end = struct

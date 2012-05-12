@@ -150,6 +150,10 @@ let init_module no_tables =
                         (func_type [ int_type ] void_type)
                         m
         in
+        let _ = Llvm.declare_function "caraml_get_tagword"
+                        (func_type [ intptr_type ] int_type)
+                        m
+        in
         if not no_tables then
             begin
                 for i = 1 to Config.max_args do
@@ -275,6 +279,9 @@ let mul b x y = binop Llvm.build_mul b x y;;
 let div b x y = binop Llvm.build_sdiv b x y;;
 let bool_and b x y = binop Llvm.build_and b x y;;
 let bool_or b x y = binop Llvm.build_or b x y;;
+
+let int_and b x y = binop Llvm.build_and b x y;;
+let int_lshr b x y = binop Llvm.build_lshr b x y;;
 
 let compare t b x y = binop (Llvm.build_icmp t) b x y;;
 let lt b x y = compare Llvm.Icmp.Slt b x y;;

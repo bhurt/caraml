@@ -76,6 +76,9 @@ val div : block_t -> Llvm.llvalue -> Llvm.llvalue -> Llvm.llvalue;;
 val bool_and : block_t -> Llvm.llvalue -> Llvm.llvalue -> Llvm.llvalue;;
 val bool_or : block_t -> Llvm.llvalue -> Llvm.llvalue -> Llvm.llvalue;;
 
+val int_and : block_t -> Llvm.llvalue -> Llvm.llvalue -> Llvm.llvalue;;
+val int_lshr : block_t -> Llvm.llvalue -> Llvm.llvalue -> Llvm.llvalue;;
+
 val lt : block_t -> Llvm.llvalue -> Llvm.llvalue -> Llvm.llvalue;;
 val le : block_t -> Llvm.llvalue -> Llvm.llvalue -> Llvm.llvalue;;
 val gt : block_t -> Llvm.llvalue -> Llvm.llvalue -> Llvm.llvalue;;

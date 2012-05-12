@@ -19,6 +19,7 @@
 let dump_ast = ref false;;
 let dump_annot = ref false;;
 let dump_alpha = ref false;;
+let dump_matchreduce = ref false;;
 let dump_lambdaconv = ref false;;
 let dump_freebind = ref false;;
 let dump_lambda_lift = ref false;;
@@ -31,6 +32,7 @@ type dumps_t = {
     ast_out : out_channel option;
     annot_out : out_channel option;
     alpha_out : out_channel option;
+    matchreduce_out : out_channel option;
     lambdaconv_out : out_channel option;
     freebind_out : out_channel option;
     lambda_out : out_channel option;
@@ -39,8 +41,9 @@ type dumps_t = {
 };;
 
 type state_t = {
-    annot_map : Type.t Annot.StringMap.t;
+    annot_map : Annot.type_env_t;
     alpha_map : Common.Var.t Alpha.StringMap.t;
+    match_map : Common.Tag.t Common.Var.Map.t;
     lambda_set : Common.Var.Set.t;
     callopt_map : int Common.Var.Map.t;
     init_fns : string option list;
@@ -65,30 +68,39 @@ let handle_ast dumps state ast =
     let _ = maybe_dump dumps.annot_out Annot.sexp_of_t annot in
     let (alpha_map, alpha) = Alpha.convert state.alpha_map annot in
     let _ = maybe_dump dumps.alpha_out Alpha.sexp_of_t alpha in
-    let lconv = LambdaConv.convert alpha in
-    let _ = maybe_dump dumps.lambdaconv_out LambdaConv.sexp_of_t lconv in
-    let (lambda_set, fbind) = FreeBind.convert state.lambda_set lconv in
-    let _ = maybe_dump dumps.freebind_out LambdaConv.sexp_of_t fbind in
-    let lambdas = LambdaLift.convert fbind in
+    let (match_map, ms) = MatchReduce.convert state.match_map alpha in
     List.fold_left
-        (fun state lambda ->
-            maybe_dump dumps.lambda_out LambdaLift.sexp_of_t lambda;
-            let simplify = Simplify.convert lambda in
-            maybe_dump dumps.simplify_out Simplify.sexp_of_t simplify;
-            let (callopt_map, callopt) =
-                CallOpt.convert state.callopt_map simplify
+        (fun state m ->
+            maybe_dump dumps.matchreduce_out MatchReduce.sexp_of_t m;
+            let lconv = LambdaConv.convert m in
+            let _ = maybe_dump dumps.lambdaconv_out
+                                    LambdaConv.sexp_of_t lconv
             in
-            maybe_dump dumps.callopt_out CallOpt.sexp_of_t callopt;
-            let init_fn = Assembly.assemble callopt in
-            {
-                annot_map = annot_map;
-                alpha_map = alpha_map;
-                lambda_set = lambda_set;
-                callopt_map = callopt_map;
-                init_fns = init_fn :: state.init_fns;
-            })
+            let (lambda_set, fbind) = FreeBind.convert state.lambda_set lconv in
+            let _ = maybe_dump dumps.freebind_out LambdaConv.sexp_of_t fbind in
+            let lambdas = LambdaLift.convert fbind in
+            List.fold_left
+                (fun state lambda ->
+                    maybe_dump dumps.lambda_out LambdaLift.sexp_of_t lambda;
+                    let simplify = Simplify.convert lambda in
+                    maybe_dump dumps.simplify_out Simplify.sexp_of_t simplify;
+                    let (callopt_map, callopt) =
+                        CallOpt.convert state.callopt_map simplify
+                    in
+                    maybe_dump dumps.callopt_out CallOpt.sexp_of_t callopt;
+                    let init_fn = Assembly.assemble callopt in
+                    {
+                        annot_map = annot_map;
+                        alpha_map = alpha_map;
+                        match_map = match_map;
+                        lambda_set = lambda_set;
+                        callopt_map = callopt_map;
+                        init_fns = init_fn :: state.init_fns;
+                    })
+                state
+                lambdas)
         state
-        lambdas
+        ms
 ;;
 
 let rec parse_loop lexbuf dumps state =
@@ -139,6 +151,7 @@ let make_dumps name = {
     ast_out = maybe_out dump_ast ".ast.sexp" name;
     annot_out = maybe_out dump_annot ".annot.sexp" name;
     alpha_out = maybe_out dump_alpha ".alpha.sexp" name;
+    matchreduce_out = maybe_out dump_matchreduce ".matchreduce.sexp" name;
     lambdaconv_out = maybe_out dump_lambdaconv ".lambdaconv.sexp" name;
     freebind_out = maybe_out dump_freebind ".freebind.sexp" name;
     lambda_out = maybe_out dump_lambda_lift ".lambda-lift.sexp" name;
@@ -157,6 +170,7 @@ let close_dumps dumps =
     maybe_close dumps.ast_out;
     maybe_close dumps.annot_out;
     maybe_close dumps.alpha_out;
+    maybe_close dumps.matchreduce_out;
     maybe_close dumps.lambdaconv_out;
     maybe_close dumps.freebind_out;
     maybe_close dumps.lambda_out;
@@ -168,8 +182,12 @@ let close_dumps dumps =
 let init_state name = 
     LlvmIntf.with_module name;
     {
-        annot_map = Annot.StringMap.empty;
+        annot_map = {
+            Annot.type_map = Annot.StringMap.empty;
+            Annot.type_defn = Annot.StringMap.empty;
+        };
         alpha_map = Alpha.StringMap.empty;
+        match_map = Common.Var.Map.empty;
         lambda_set = Common.Var.Set.empty;
         callopt_map = Common.Var.Map.empty;
         init_fns = [];
@@ -250,6 +268,7 @@ let arg_spec = [
     "--dump-ast", Arg.Set dump_ast, "Dump the AST.";
     "--dump-annot", Arg.Set dump_annot, "Dump the type-annotated AST.";
     "--dump-alpha", Arg.Set dump_alpha, "Dump the alpha-renamed AST.";
+    "--dump-matchreduce", Arg.Set dump_matchreduce, "Dump the match-reduced AST.";
     "--dump-lambdaconv", Arg.Set dump_lambdaconv, "Dump the lambda converted AST.";
     "--dump-freebind", Arg.Set dump_freebind, "Dump the bound free vars AST.";
     "--dump-lambda-lifted", Arg.Set dump_lambda_lift, 
@@ -262,6 +281,7 @@ let arg_spec = [
                         dump_ast := true;
                         dump_annot := true;
                         dump_alpha := true;
+                        dump_matchreduce := true;
                         dump_lambdaconv := true;
                         dump_freebind := true;
                         dump_lambda_lift := true;

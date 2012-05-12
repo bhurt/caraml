@@ -200,3 +200,28 @@ let apply block closure args =
 ;;
 
 
+let get_tag block ptr =
+    let tag_word = load block ~lltype:LlvmIntf.int_type ptr (-1) in
+    let low_bit = LlvmIntf.int_and block tag_word (LlvmIntf.int_const 1) in
+    let is_tag = LlvmIntf.ne block low_bit (LlvmIntf.int_const 0) in
+
+    let call_block = LlvmIntf.new_block () in
+    let call_res = LlvmIntf.call call_block
+                        (LlvmIntf.lookup_function "caraml_get_tagword")
+                        [ ptr ]
+    in
+
+    let end_block = LlvmIntf.new_block () in
+    let _ = LlvmIntf.cond_br block ~test:is_tag ~on_true:end_block
+                                                    ~on_false:call_block
+    in
+    let _ = LlvmIntf.br call_block end_block in
+    let res = LlvmIntf.phi end_block
+                            [ (tag_word, block); (call_res, call_block) ]
+    in
+    let res = LlvmIntf.int_lshr end_block res (LlvmIntf.int_const 8) in
+    let res = LlvmIntf.int_and end_block res (LlvmIntf.int_const 0xFFFFFF) in
+    res, block
+;;
+
+

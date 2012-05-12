@@ -43,3 +43,7 @@ val alloc_closure : LlvmIntf.block_t
 val apply : LlvmIntf.block_t -> Llvm.llvalue -> Llvm.llvalue list
                 -> Llvm.llvalue
 ;;
+
+val get_tag : LlvmIntf.block_t -> Llvm.llvalue
+                        -> (Llvm.llvalue * LlvmIntf.block_t);;
+

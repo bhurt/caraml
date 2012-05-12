@@ -54,7 +54,26 @@ module Var = struct
         String.sub s 0 (String.index s '.')
     ;;
 
-    module Map = XMap;;
+    module Map = struct
+        include XMap;;
+
+        let t_of_sexp f sexp = 
+            let pairs =
+                Sexplib.Conv.list_of_sexp
+                    (Sexplib.Conv.pair_of_sexp t_of_sexp f) sexp
+            in
+            List.fold_left (fun m (k, v) -> XMap.add k v m) XMap.empty
+                pairs
+        ;;
+
+        let sexp_of_t f x =
+            let pairs = XMap.bindings x in
+            Sexplib.Conv.sexp_of_list
+                (Sexplib.Conv.sexp_of_pair sexp_of_t f) pairs
+        ;;
+
+    end;;
+
     module Set = Set.Make(String);;
 
 end;;

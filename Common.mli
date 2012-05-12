@@ -26,7 +26,12 @@ module Var : sig
 
     val generate : unit -> t;;
 
-    module Map : Map.S with type key = t;;
+    module Map : sig
+        include Map.S with type key = t;;
+        val t_of_sexp : (Sexplib.Sexp.t -> 'a) -> Sexplib.Sexp.t -> 'a t
+        val sexp_of_t : ('a -> Sexplib.Sexp.t) -> 'a t -> Sexplib.Sexp.t
+    end;;
+
     module Set : Set.S with type elt = t;;
 
 end;;

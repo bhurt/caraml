@@ -52,6 +52,16 @@ end = struct
         | Expr.Case(_, _, n, opts) ->
             let s = add_var bound s n in
             List.fold_left (fun s x -> loop bound s (snd x)) s opts
+        | Expr.Label(_, _, x, _, bindings, y) ->
+            let s = loop bound s x in
+            let bound = Common.Var.Map.fold
+                            (fun k _ bound -> Common.Var.Set.add k bound)
+                            bindings
+                            bound
+            in
+            loop bound s y
+        | Expr.Goto(_, _, bindings) ->
+            Common.Var.Map.fold (fun _ x s -> loop bound s x) bindings s
         | Expr.BinOp(_, _, x, _, y) ->
             let s = loop bound s x in
             loop bound s y
@@ -137,6 +147,16 @@ end = struct
             in
             Expr.Case(info, ty, n, opts)
 
+        | Expr.Label(info, ty, x, label, bindings, y) ->
+            (* Note: we don't even try replacing vars bound in a label. *)
+            let x = replace_vars repl x in
+            let y = replace_vars repl y in
+            Expr.Label(info, ty, x, label, bindings, y)
+
+        | Expr.Goto(info, label, bindings) ->
+            let bindings = Common.Var.Map.map (replace_vars repl) bindings in
+            Expr.Goto(info, label, bindings)
+        
         | Expr.BinOp(info, ty, x, op, y) ->
             let x = replace_vars repl x in
             let y = replace_vars repl y in
@@ -174,6 +194,8 @@ let get_info = function
     | Expr.AllocTuple(info, _, _, _)
     | Expr.GetField(info, _, _, _)
     | Expr.Case(info, _, _, _)
+    | Expr.Label(info, _, _, _, _, _)
+    | Expr.Goto(info, _, _)
     | Expr.BinOp(info, _, _, _, _)
     | Expr.UnOp(info, _, _, _)
     | Expr.Apply(info, _, _, _)
@@ -190,12 +212,17 @@ let get_type = function
     | Expr.AllocTuple(_, ty, _, _)
     | Expr.GetField(_, ty, _, _)
     | Expr.Case(_, ty, _, _)
+    | Expr.Label(_, ty, _, _, _, _)
     | Expr.BinOp(_, ty, _, _, _)
     | Expr.UnOp(_, ty, _, _)
     | Expr.Apply(_, ty, _, _)
     | Expr.Var(_, ty, _)
     | Expr.Const(_, ty, _)
     -> ty
+
+    (* This should be 'a *)
+    | Expr.Goto(_, _, _) -> Type.Base(Type.Unit)
+
 ;;
 
 let map_vars old_names new_names x =
@@ -341,6 +368,15 @@ let rec convert_expr publics = function
             List.map (fun (tag, x) -> tag, convert_expr publics x) opts
         in
         Expr.Case(info, ty, n, opts)
+
+    | Expr.Label(info, ty, x, label, bindings, y) ->
+        let x = convert_expr publics x in
+        let y = convert_expr publics y in
+        Expr.Label(info, ty, x, label, bindings, y)
+
+    | Expr.Goto(info, label, bindings) ->
+        let bindings = Common.Var.Map.map (convert_expr publics) bindings in
+        Expr.Goto(info, label, bindings)
 
     | Expr.BinOp(info, ty, x, op, y) ->
         let x = convert_expr publics x in

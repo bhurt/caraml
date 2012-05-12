@@ -30,6 +30,10 @@ module Expr = struct
         | Case of Info.t * Common.VarType.t
                     * (Common.VarType.t * Common.Var.t)
                     * ((Common.Tag.t * t) list)
+        | Label of Info.t * Common.VarType.t * t * Common.Var.t
+                                * Common.VarType.t Common.Var.Map.t * t
+        | Goto of Info.t * Common.Var.t
+                    * ((Common.VarType.t * Common.Var.t) Common.Var.Map.t)
         | BinOp of Info.t * Common.VarType.t * t * Common.BinOp.t * t
         | UnOp of Info.t * Common.VarType.t * Common.UnOp.t * t
         | Apply of Info.t * Common.VarType.t
@@ -49,6 +53,8 @@ module Expr = struct
         | AllocTuple(info, _, _, _)
         | GetField(info, _, _, _)
         | Case(info, _, _, _)
+        | Label(info, _, _, _, _, _)
+        | Goto(info, _, _)
         | BinOp(info, _, _, _, _)
         | UnOp(info, _, _, _)
         | Apply(info, _, _, _)
@@ -64,6 +70,7 @@ module Expr = struct
         | AllocTuple(_, ty, _, _)
         | GetField(_, ty, _, _)
         | Case(_, ty, _, _)
+        | Label(_, ty, _, _, _, _)
         | BinOp(_, ty, _, _, _)
         | UnOp(_, ty, _, _)
         | Apply(_, ty, _, _)
@@ -71,6 +78,9 @@ module Expr = struct
         | Const(_, ty, _)
         | CallExtern(_, ty, _, _)
         -> ty
+
+        (* This should be 'a *)
+        | Goto(_, _, _) -> Type.Base(Type.Unit)
     ;;
 
 
@@ -103,6 +113,18 @@ module Expr = struct
         | LambdaLift.Expr.Case(info, ty, n, opts) ->
             let opts = List.map (fun (tag, x) -> tag, convert x) opts in
             Case(info, ty, n, opts)
+        | LambdaLift.Expr.Label(info, ty, x, label, bindings, y) ->
+            Label(info, ty, (convert x), label, bindings, (convert y))
+        | LambdaLift.Expr.Goto(info, label, bindings) ->
+            let rec loop bindings = function
+                | [] -> Goto(info, label, bindings)
+                | (k, x) :: xs -> lift_var (convert x)
+                                    (fun v -> loop
+                                                (Common.Var.Map.add k v
+                                                                    bindings)
+                                                xs)
+            in
+            loop Common.Var.Map.empty (Common.Var.Map.bindings bindings)
         | LambdaLift.Expr.BinOp(info, ty, x, op, y) ->
             BinOp(info, ty, (convert x), op, (convert y))
         | LambdaLift.Expr.UnOp(info, ty, op, x) ->

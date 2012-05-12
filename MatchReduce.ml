@@ -32,6 +32,9 @@ module Expr = struct
         | Case of Info.t * Common.VarType.t
                     * (Common.VarType.t * Common.Var.t)
                     * ((Common.Tag.t * t) list)
+        | Label of Info.t * Common.VarType.t * t * Common.Var.t
+                                * Common.VarType.t Common.Var.Map.t * t
+        | Goto of Info.t * Common.Var.t * (t Common.Var.Map.t)
         | BinOp of Info.t * Common.VarType.t * t * Common.BinOp.t * t
         | UnOp of Info.t * Common.VarType.t * Common.UnOp.t * t
         | Apply of Info.t * Common.VarType.t * t * t

@@ -27,6 +27,10 @@ module InnerExpr : sig
         | Case of Info.t * Common.VarType.t
                     * (Common.VarType.t * Common.Var.t)
                     * ((Common.Tag.t * t) list)
+        | Label of Info.t * Common.VarType.t * t * Common.Var.t
+                                * Common.VarType.t Common.Var.Map.t * t
+        | Goto of Info.t * Common.Var.t
+                    * ((Common.VarType.t * Common.Var.t) Common.Var.Map.t)
         | BinOp of Info.t * Common.VarType.t * t * Common.BinOp.t * t
         | UnOp of Info.t * Common.VarType.t * Common.UnOp.t * t
         | InnerApply of Info.t * Common.VarType.t
@@ -59,6 +63,10 @@ module TailExpr : sig
         | Case of Info.t * Common.VarType.t
                     * (Common.VarType.t * Common.Var.t)
                     * ((Common.Tag.t * t) list)
+        | Label of Info.t * Common.VarType.t * t * Common.Var.t
+                                * Common.VarType.t Common.Var.Map.t * t
+        | Goto of Info.t * Common.Var.t
+                    * ((Common.VarType.t * Common.Var.t) Common.Var.Map.t)
         | TailCall of Info.t * Common.VarType.t
                             * (Common.VarType.t * Common.Var.t)
                             * ((Common.VarType.t * Common.Var.t) list)

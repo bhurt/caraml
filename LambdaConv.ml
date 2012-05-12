@@ -31,6 +31,9 @@ module Expr = struct
         | GetField of Info.t * Common.VarType.t * int * t
         | Case of Info.t * Common.VarType.t * (Common.VarType.t * Common.Var.t)
                         * ((Common.Tag.t * t) list)
+        | Label of Info.t * Common.VarType.t * t * Common.Var.t
+                                * Common.VarType.t Common.Var.Map.t * t
+        | Goto of Info.t * Common.Var.t * t Common.Var.Map.t
         | BinOp of Info.t * Common.VarType.t * t * Common.BinOp.t * t
         | UnOp of Info.t * Common.VarType.t * Common.UnOp.t * t
         | Apply of Info.t * Common.VarType.t * t * t
@@ -97,6 +100,15 @@ module Expr = struct
         | MatchReduce.Expr.Case(info, ty, n, opts) ->
             let opts = List.map (fun (tag, x) -> tag, convert x) opts in
             Case(info, ty, n, opts)
+
+        | MatchReduce.Expr.Label(info, ty, x, label, bindings, y) ->
+            let x = convert x in
+            let y = convert y in
+            Label(info, ty, x, label, bindings, y)
+
+        | MatchReduce.Expr.Goto(info, label, bindings) ->
+            let bindings = Common.Var.Map.map convert bindings in
+            Goto(info, label, bindings)
 
         | MatchReduce.Expr.BinOp(info, ty, x, op, y) ->
             let x = convert x in

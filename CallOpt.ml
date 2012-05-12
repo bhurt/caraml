@@ -32,6 +32,10 @@ module InnerExpr = struct
         | Case of Info.t * Common.VarType.t
                         * (Common.VarType.t * Common.Var.t)
                         * ((Common.Tag.t * t) list)
+        | Label of Info.t * Common.VarType.t * t * Common.Var.t
+                                * Common.VarType.t Common.Var.Map.t * t
+        | Goto of Info.t * Common.Var.t
+                    * ((Common.VarType.t * Common.Var.t) Common.Var.Map.t)
         | BinOp of Info.t * Common.VarType.t * t * Common.BinOp.t * t
         | UnOp of Info.t * Common.VarType.t * Common.UnOp.t * t
         | InnerApply of Info.t * Common.VarType.t
@@ -69,6 +73,12 @@ module InnerExpr = struct
                 List.map (fun (tag, x) -> tag, (convert globals x)) opts
             in
             Case(info, ty, n, opts)
+        | Simplify.Expr.Label(info, ty, x, label, bindings, y) ->
+            let x = convert globals x in
+            let y = convert globals y in
+            Label(info, ty, x, label, bindings, y)
+        | Simplify.Expr.Goto(info, label, bindings) ->
+            Goto(info, label, bindings)
         | Simplify.Expr.BinOp(info, ty, x, op, y) ->
             let x = convert globals x in
             let y = convert globals y in
@@ -117,6 +127,7 @@ module InnerExpr = struct
         | AllocTuple(_, ty, _, _)
         | GetField(_, ty, _, _)
         | Case(_, ty, _, _)
+        | Label(_, ty, _, _, _, _)
         | BinOp(_, ty, _, _, _)
         | UnOp(_, ty, _, _)
         | InnerApply(_, ty, _, _)
@@ -126,6 +137,8 @@ module InnerExpr = struct
         | Const(_, ty, _)
         | CallExtern(_, ty, _, _)
         -> ty
+
+        | Goto(_, _, _) -> Type.Base(Type.Unit)
     ;;
 
 end;;
@@ -140,6 +153,10 @@ module TailExpr = struct
         | Case of Info.t * Common.VarType.t
                     * (Common.VarType.t * Common.Var.t)
                     * ((Common.Tag.t * t) list)
+        | Label of Info.t * Common.VarType.t * t * Common.Var.t
+                                * Common.VarType.t Common.Var.Map.t * t
+        | Goto of Info.t * Common.Var.t
+                    * ((Common.VarType.t * Common.Var.t) Common.Var.Map.t)
         | TailCall of Info.t * Common.VarType.t
                             * (Common.VarType.t * Common.Var.t)
                             * ((Common.VarType.t * Common.Var.t) list)
@@ -157,6 +174,10 @@ module TailExpr = struct
         | InnerExpr.Case(info, ty, n, opts) ->
             let opts = List.map (fun (tag, x) -> tag, return x) opts in
             Case(info, ty, n, opts)
+        | InnerExpr.Label(info, ty, x, label, bindings, y) ->
+            Label(info, ty, (return x), label, bindings, (return y))
+        | InnerExpr.Goto(info, label, bindings) ->
+            Goto(info, label, bindings)
         | InnerExpr.InnerCall(info, ty, f, xs) ->
             TailCall(info, ty, f, xs)
         | InnerExpr.CallExtern(info, ty, xtern, xs) ->
@@ -171,9 +192,12 @@ module TailExpr = struct
         | Let(_, ty, _, _, _)
         | If(_, ty, _, _, _)
         | Case(_, ty, _, _)
+        | Label(_, ty, _, _, _, _)
         | TailCall(_, ty, _, _)
         | TailCallExtern(_, ty, _, _)
         -> ty
+
+        | Goto(_, _, _) -> Type.Base(Type.Unit)
     ;;
 
 end;;

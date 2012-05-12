@@ -28,6 +28,9 @@ module Expr = struct
         | Case of Info.t * Common.VarType.t
                         * (Common.VarType.t * Common.Var.t)
                         * ((Common.Tag.t * t) list)
+        | Label of Info.t * Common.VarType.t * t * Common.Var.t
+                                * Common.VarType.t Common.Var.Map.t * t
+        | Goto of Info.t * Common.Var.t * (t Common.Var.Map.t)
         | BinOp of Info.t * Common.VarType.t * t * Common.BinOp.t * t
         | UnOp of Info.t * Common.VarType.t * Common.UnOp.t * t
         | Apply of Info.t * Common.VarType.t * t * t
@@ -102,6 +105,22 @@ let rec convert_expr acc = function
         in
         acc, Expr.Case(info, ty, n, opts)
 
+    | LambdaConv.Expr.Label(info, ty, x, label, bindings, y) ->
+        let acc, x = convert_expr acc x in
+        let acc, y = convert_expr acc y in
+        acc, Expr.Label(info, ty, x, label, bindings, y)
+    | LambdaConv.Expr.Goto(info, label, bindings) ->
+        let acc, bindings = Common.Var.Map.fold
+                                (fun k x (acc, bindings) ->
+                                    let acc, x = convert_expr acc x in
+                                    let bindings = Common.Var.Map.add
+                                                        k x bindings
+                                    in
+                                    acc, bindings)
+                                bindings
+                                (acc, Common.Var.Map.empty)
+        in
+        acc, Expr.Goto(info, label, bindings)
     | LambdaConv.Expr.BinOp(info, ty, x, op, y) ->
         let acc, x = convert_expr acc x in
         let acc, y = convert_expr acc y in

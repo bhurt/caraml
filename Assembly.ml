@@ -96,36 +96,112 @@ module InnerExpr = struct
         LlvmIntf.box ty block v
     ;;
 
-
-    let rec assemble names start_block = function
-        | CallOpt.InnerExpr.Let(_, _, (_, n), x, y) ->
-            let (r, b) = assemble names start_block x in
-            let names =
-                match n with
-                | None -> names
-                | Some v -> Common.Var.Map.add v r names
+    let merge_blocks t u =
+        match t, u with
+        | None, None -> None
+        | Some(_), None -> t
+        | None, Some(_) ->  u
+        | Some(t_r, t_b), Some(u_r, u_b) ->
+            let end_block = LlvmIntf.new_block () in
+            let end_r = LlvmIntf.phi end_block 
+                            [ (t_r, t_b); (u_r, u_b) ]
             in
-            assemble names b y
+            let _ = LlvmIntf.br t_b end_block in
+            let _ = LlvmIntf.br u_b end_block in
+            Some(end_r, end_block)
+    ;;
+
+    let handle_label gotos names label bindings =
+        match
+            try
+                Some(Common.Var.Map.find label gotos)
+            with
+            | Not_found -> None
+        with
+        | None -> None
+        | Some(sources) ->
+            let gotos = Common.Var.Map.remove label gotos in
+            let target = LlvmIntf.new_block () in
+            let _ =
+                List.iter
+                    (fun (block, _) ->
+                        let _ = LlvmIntf.br block target in
+                        ())
+                    sources
+            in
+            let names =
+                Common.Var.Map.fold
+                    (fun v _ names ->
+                        let name = 
+                            LlvmIntf.phi target
+                                (List.map
+                                    (fun (block, args) ->
+                                        try
+                                            (Common.Var.Map.find
+                                                            v args),
+                                            block
+                                        with
+                                        | Not_found -> assert false)
+                                    sources)
+                        in
+                        Common.Var.Map.add v name names)
+                    bindings
+                    names
+            in
+            Some(gotos, names, target)
+    ;;
+
+    let handle_goto gotos names start_block label bindings =
+        let bindings =
+            Common.Var.Map.map 
+                (fun (_, n) -> get_name start_block names n)
+                bindings
+        in
+        try
+            let xs = Common.Var.Map.find label gotos in
+            Common.Var.Map.add label ((start_block, bindings) :: xs)
+                                gotos
+        with
+        | Not_found ->
+            Common.Var.Map.add label [ start_block, bindings ] gotos
+    ;;
+
+    let rec assemble gotos names start_block = function
+        | CallOpt.InnerExpr.Let(_, _, (_, n), x, y) ->
+            begin
+                let (t, gotos) = assemble gotos names start_block x in
+                match t with
+                | None -> (None, gotos)
+                | Some(r, b) ->
+                    let names =
+                        match n with
+                        | None -> names
+                        | Some v -> Common.Var.Map.add v r names
+                    in
+                    assemble gotos names b y
+            end
 
         | CallOpt.InnerExpr.If(_, _, x, y, z) ->
-            let (r, b) = assemble names start_block x in
+            begin
+                let (t, gotos) = assemble gotos names start_block x in
+                match t with
+                | None -> None, gotos
+                | Some(r, b) ->
+                    let true_start = LlvmIntf.new_block () in
+                    let (true_t, gotos) =
+                        assemble gotos names true_start y
+                    in
 
-            let true_start = LlvmIntf.new_block () in
-            let (true_r, true_b) = assemble names true_start y in
+                    let false_start = LlvmIntf.new_block() in
+                    let (false_t, gotos) =
+                        assemble gotos names false_start z
+                    in
 
-            let false_start = LlvmIntf.new_block() in
-            let (false_r, false_b) = assemble names false_start z in
-
-            let _ = LlvmIntf.cond_br b ~test:r ~on_true:true_start
-                                            ~on_false:false_start
-            in
-            let end_block = LlvmIntf.new_block () in
-            let end_r = LlvmIntf.phi end_block
-                            [ (true_r, true_b); (false_r, false_b) ]
-            in
-            let _ = LlvmIntf.br true_b end_block in
-            let _ = LlvmIntf.br false_b end_block in
-            (end_r, end_block)
+                    let _ = LlvmIntf.cond_br b ~test:r ~on_true:true_start
+                                                ~on_false:false_start
+                    in
+                    (merge_blocks true_t false_t), gotos
+            end
 
         | CallOpt.InnerExpr.AllocTuple(info, ty, tag, xs) ->
             if (List.length xs) > 32 then
@@ -135,22 +211,24 @@ module InnerExpr = struct
                                             (List.length xs)
                 in
                 let _ = write_tuple (Common.Tag.to_int tag) b names ptr xs in
-                (ptr, b)
+                Some(ptr, b), gotos
 
         | CallOpt.InnerExpr.GetField(info, ty, num, (ty', v)) ->
             let res = get_name start_block names v in
-            (LlvmUtils.get_member start_block res ty num), start_block
+            Some((LlvmUtils.get_member start_block res ty num), start_block),
+            gotos
 
         | CallOpt.InnerExpr.Case(info, ty, (ty', v), opts) ->
             let default = LlvmIntf.new_block () in
             let _ = LlvmIntf.unreachable default in
-            let test = get_name start_block names v in
-            let switch = LlvmIntf.switch start_block test ~default
+            let x = get_name start_block names v in
+            let (tag, start_block) = LlvmUtils.get_tag start_block x in
+            let switch = LlvmIntf.switch start_block tag ~default
                             (List.length opts)
             in
-            let res =
-                List.map
-                    (fun (tag, x) ->
+            let (res, gotos) =
+                List.fold_left
+                    (fun (acc, gotos) (tag, x) ->
                         let tag =
                             LlvmIntf.int_const (Common.Tag.to_int tag)
                         in
@@ -158,28 +236,65 @@ module InnerExpr = struct
                         let _ = LlvmIntf.add_case ~switch ~tag 
                                     ~dest:start_block
                         in
-                        assemble names start_block x)
+                        let (t, gotos) = assemble gotos names start_block x in
+                        match t with
+                        | None -> (acc, gotos)
+                        | Some(x) ->
+                            (x :: acc, gotos))
+                    ([], gotos)
                     opts
             in
-            let end_block = LlvmIntf.new_block () in
-            let end_r = LlvmIntf.phi end_block res in
-            let _ = List.iter
-                        (fun (_, b) ->
-                            let _ = LlvmIntf.br b end_block in
-                            ())
-            in
-            end_r, end_block
+            if (res != []) then
+                let end_block = LlvmIntf.new_block () in
+                let end_r = LlvmIntf.phi end_block res in
+                let _ = List.iter
+                            (fun (_, b) ->
+                                let _ = LlvmIntf.br b end_block in
+                                ())
+                in
+                Some(end_r, end_block), gotos
+            else
+                None, gotos
+
+        | CallOpt.InnerExpr.Label(_, _, x, label, bindings, y) ->
+            begin
+                let (t, gotos) = assemble gotos names start_block x in
+                match handle_label gotos names label bindings with
+                | None -> t, gotos
+                | Some(gotos, names, target) ->
+                    let u, gotos = assemble gotos names target y in
+                    (merge_blocks t u), gotos
+            end
+
+        | CallOpt.InnerExpr.Goto(_, label, bindings) ->
+            None, (handle_goto gotos names start_block label bindings)
 
         | CallOpt.InnerExpr.BinOp(_, _, x, op, y) ->
-            let (x, b) = assemble names start_block x in
-            let (y, b) = assemble names b y in
-            let res = binop_ins op b x y in
-            (res, b)
+            (* There is some opportunity for better dead-code elimination
+             * here.
+             *)
+            begin
+                let (t, gotos) = assemble gotos names start_block x in
+                match t with
+                | None -> None, gotos
+                | Some(x, b) ->
+                    let (t, gotos) = assemble gotos names b y in
+                    match t with
+                    | None -> None, gotos
+                    | Some(y, b) ->
+                        let res = binop_ins op b x y in
+                        Some(res, b), gotos
+            end
 
         | CallOpt.InnerExpr.UnOp(_, _, op, x) ->
-            let (x, b) = assemble names start_block x in
-            let res = unop_ins op b x in
-            (res, b)
+            begin
+                let (t, gotos) = assemble gotos names start_block x in
+                match t with
+                | None -> None, gotos
+                | Some(x, b) ->
+                    let res = unop_ins op b x in
+                    Some(res, b), gotos
+            end
 
         | CallOpt.InnerExpr.InnerApply(_, ty, f, xs) ->
             begin
@@ -188,7 +303,7 @@ module InnerExpr = struct
                 let f = get_name start_block names (snd f) in
                 let res = LlvmUtils.apply start_block f xs in
                 let res = LlvmIntf.unbox ty start_block res in
-                (res, start_block)
+                Some(res, start_block), gotos
             end
 
         | CallOpt.InnerExpr.InnerSafeApply(_, _, f, nargs, xs) ->
@@ -196,21 +311,23 @@ module InnerExpr = struct
                 assert (nargs <= Config.max_args);
                 assert ((List.length xs) <= Config.max_args);
                 assert ((List.length xs) < nargs);
-                LlvmUtils.alloc_closure start_block nargs
-                    ~tag_word:(fun b ->
-                            let f = get_name b names (snd f) in
-                            let t_word = LlvmUtils.load b f (-1) in
-                            (LlvmUtils.set_tag_word_length b
-                                            ~len:(2 + List.length xs)
-                                            t_word), b)
-                    ~fn_ptr:(fun b ->
-                            let f = get_name b names (snd f) in
-                            (LlvmUtils.load b
-                                    ~lltype:LlvmIntf.intptr_type
-                                    f 1), b)
-                    (List.map
-                        (fun x b -> (box b names x), b)
-                        xs)
+                let c = LlvmUtils.alloc_closure start_block nargs
+                            ~tag_word:(fun b ->
+                                    let f = get_name b names (snd f) in
+                                    let t_word = LlvmUtils.load b f (-1) in
+                                    (LlvmUtils.set_tag_word_length b
+                                                    ~len:(2 + List.length xs)
+                                                    t_word), b)
+                            ~fn_ptr:(fun b ->
+                                    let f = get_name b names (snd f) in
+                                    (LlvmUtils.load b
+                                            ~lltype:LlvmIntf.intptr_type
+                                            f 1), b)
+                            (List.map
+                                (fun x b -> (box b names x), b)
+                                xs)
+                in
+                Some(c), gotos
             end
         | CallOpt.InnerExpr.InnerCall(_, _, f, xs) ->
             let xs = List.map
@@ -220,11 +337,11 @@ module InnerExpr = struct
             let fn_name = Config.direct_name (snd f) in
             let f = LlvmIntf.lookup_function fn_name in
             let res = LlvmIntf.call start_block f xs in
-            (res, start_block)
+            Some(res, start_block), gotos
 
         | CallOpt.InnerExpr.Var(_, _, v) ->
             let res = get_name start_block names v in
-            (res, start_block)
+            Some(res, start_block), gotos
         | CallOpt.InnerExpr.Const(_, _, c) ->
             let res =
                 match c with
@@ -233,7 +350,7 @@ module InnerExpr = struct
                     | Common.Const.Unit -> LlvmIntf.unit_const ()
                     | Common.Const.Float x -> LlvmIntf.float_const x
             in
-            (res, start_block)
+            Some(res, start_block), gotos
         | CallOpt.InnerExpr.CallExtern(_, _, xtern, xs) ->
             let xs = List.map
                         (fun x -> get_name start_block names (snd x))
@@ -248,7 +365,7 @@ module InnerExpr = struct
             in
             let f = LlvmIntf.declare_function fn_name fn_type in
             let res = LlvmIntf.call start_block f xs in
-            (res, start_block)
+            Some(res, start_block), gotos
 
     ;;
 
@@ -256,31 +373,46 @@ end;;
 
 module TailExpr = struct
 
-    let rec assemble names start_block = function
+    let rec assemble gotos names start_block = function
         | CallOpt.TailExpr.Return(x) ->
-            let (x, b) = InnerExpr.assemble names start_block x in
-            let _ = LlvmIntf.ret b x in
-            ()
+            begin
+                let t, gotos = InnerExpr.assemble gotos names start_block x in
+                match t with
+                | None -> gotos
+                | Some(x, b) ->
+                    let _ = LlvmIntf.ret b x in
+                    gotos
+            end
 
         | CallOpt.TailExpr.Let(_, _, (_, n), x, y) ->
-            let (r, b) = InnerExpr.assemble names start_block x in
-            let names =
-                match n with
-                | None -> names
-                | Some v -> Common.Var.Map.add v r names
-            in
-            assemble names b y
+            begin
+                let t, gotos = InnerExpr.assemble gotos names start_block x in
+                match t with
+                | None -> gotos
+                | Some(r, b) ->
+                    let names =
+                        match n with
+                        | None -> names
+                        | Some v -> Common.Var.Map.add v r names
+                    in
+                    assemble gotos names b y
+            end
 
         | CallOpt.TailExpr.If(_, _, x, y, z) ->
-            let (r, b) = InnerExpr.assemble names start_block x in
-            let true_start = LlvmIntf.new_block () in
-            let _ = assemble names true_start y in
-            let false_start = LlvmIntf.new_block () in
-            let _ = assemble names false_start z in
-            let _ = LlvmIntf.cond_br start_block ~test:r
-                        ~on_true:true_start ~on_false:false_start
-            in
-            ()
+            begin
+                let t, gotos = InnerExpr.assemble gotos names start_block x in
+                match t with
+                | None -> gotos
+                | Some(r, b) ->
+                    let true_start = LlvmIntf.new_block () in
+                    let gotos = assemble gotos names true_start y in
+                    let false_start = LlvmIntf.new_block () in
+                    let gotos = assemble gotos names false_start z in
+                    let _ = LlvmIntf.cond_br start_block ~test:r
+                                ~on_true:true_start ~on_false:false_start
+                    in
+                    gotos
+            end
 
         | CallOpt.TailExpr.Case(info, ty, (ty', v), opts) ->
             let default = LlvmIntf.new_block () in
@@ -289,15 +421,28 @@ module TailExpr = struct
             let switch = LlvmIntf.switch start_block test ~default
                             (List.length opts)
             in
-            List.iter
-                (fun (tag, x) ->
+            List.fold_left
+                (fun gotos (tag, x) ->
                     let tag = LlvmIntf.int_const (Common.Tag.to_int tag) in
                     let start_block = LlvmIntf.new_block () in
                     let _ = LlvmIntf.add_case ~switch ~tag 
                                 ~dest:start_block
                     in
-                    assemble names start_block x)
+                    assemble gotos names start_block x)
+                gotos
                 opts
+
+        | CallOpt.TailExpr.Label(info, ty, x, label, bindings, y) ->
+            begin
+                let gotos = assemble gotos names start_block x in
+                match InnerExpr.handle_label gotos names label bindings with
+                | None -> gotos
+                | Some(gotos, names, target) ->
+                    assemble gotos names target y
+            end
+
+        | CallOpt.TailExpr.Goto(info, label, bindings) ->
+            InnerExpr.handle_goto gotos names start_block label bindings
 
         | CallOpt.TailExpr.TailCall(_, _, f, xs) ->
             let xs = List.map (fun x -> InnerExpr.get_name start_block
@@ -307,7 +452,8 @@ module TailExpr = struct
             let res = LlvmIntf.call start_block f xs in
             let _ = LlvmIntf.set_tail_call res in
             let _ = LlvmIntf.ret start_block res in
-            ()
+            gotos
+
         | CallOpt.TailExpr.TailCallExtern(_, _, xtern, xs) ->
             let xs = List.map
                         (fun x -> InnerExpr.get_name
@@ -325,7 +471,7 @@ module TailExpr = struct
             let res = LlvmIntf.call start_block f xs in
             let _ = LlvmIntf.set_tail_call res in
             let _ = LlvmIntf.ret start_block res in
-            ()
+            gotos
     ;;
 
 end;;
@@ -345,7 +491,9 @@ let make_direct_fn n args x =
                     args
                     (LlvmIntf.params ())
     in
-    let _ = TailExpr.assemble names (LlvmIntf.entry_block ()) x in
+    let _ = TailExpr.assemble Common.Var.Map.empty
+                                names (LlvmIntf.entry_block ()) x
+    in
     let _ = LlvmIntf.end_function () in
     ()
 ;;
@@ -414,29 +562,37 @@ let make_init_var ty n x =
     let _ = LlvmIntf.define_global name nil in
     let init_name = make_init n in
     let start_block = LlvmIntf.entry_block () in
-    let (v, b) = InnerExpr.assemble
+    let t, _ = InnerExpr.assemble
+                    Common.Var.Map.empty
                     Common.Var.Map.empty
                     start_block
                     x
     in
-    let ptr = LlvmIntf.lookup_global name in
-    let _ = LlvmIntf.store b ~ptr ~value:v in
-    let _ = LlvmIntf.ret_void b in
-    let _ = LlvmIntf.end_function () in
-    Some(init_name)
+    match t with
+    | None -> assert false
+    | Some(v, b) ->
+        let ptr = LlvmIntf.lookup_global name in
+        let _ = LlvmIntf.store b ~ptr ~value:v in
+        let _ = LlvmIntf.ret_void b in
+        let _ = LlvmIntf.end_function () in
+        Some(init_name)
 ;;
 
 let make_static x =
     let init_name = make_init (Common.Var.generate ()) in
     let start_block = LlvmIntf.entry_block () in
-    let (v, b) = InnerExpr.assemble
+    let t, _ = InnerExpr.assemble
+                    Common.Var.Map.empty
                     Common.Var.Map.empty
                     start_block
                     x
     in
-    let _ = LlvmIntf.ret_void b in
-    let _ = LlvmIntf.end_function () in
-    Some(init_name)
+    match t with
+    | None -> assert false
+    | Some(v, b) ->
+        let _ = LlvmIntf.ret_void b in
+        let _ = LlvmIntf.end_function () in
+        Some(init_name)
 ;;
 
 let split_args ty nargs =

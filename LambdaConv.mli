@@ -50,4 +50,5 @@ type t =
     with sexp
 ;;
 
-val convert : MatchReduce.t -> t;;
+module Convert : IL.Converter with type output = t;;
+

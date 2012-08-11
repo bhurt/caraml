@@ -50,5 +50,5 @@ type t =
     with sexp
 ;;
 
-val convert : LambdaConv.t -> t list;;
+module Convert : IL.Converter with type output = t;;
 

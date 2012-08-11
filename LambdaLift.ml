@@ -184,3 +184,21 @@ let convert = function
         [ TopFun(info, fty, v, args, y) ]
 ;;
 
+module C : IL.Conversion with type input = LambdaConv.t
+                                and type output = t =
+struct
+    type input = LambdaConv.t;;
+    type output = t;;
+    type state = unit;;
+
+    let name = "lambda-lift";;
+    let sexp_of_output x = sexp_of_t x;;
+    let dump_flag = ref false;;
+    let init_state () = ();;
+    let convert _ input = (), (convert input);;
+    let fini_state _ = ();;
+end;;
+
+module Convert : IL.Converter with type output = t =
+    IL.Make(FreeBind.Convert)(C);;
+

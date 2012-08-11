@@ -21,14 +21,7 @@ module CheckedString : sig
     val to_string : t -> string;;
 end;;
 
-module StringMap : Map.S with type key = string;;
-
 type type_t = CheckedString.t Type.t with sexp;;
-
-type type_env_t = {
-    type_map : type_t StringMap.t;
-    type_defn : type_t list StringMap.t StringMap.t;
-};;
 
 module Pattern : sig
 
@@ -69,5 +62,5 @@ type t =
     with sexp
 ;;
 
-val convert : type_env_t -> AST.t -> (type_env_t * t);;
+module Convert: IL.Converter with type output = t;;
 

@@ -225,3 +225,21 @@ let convert names = function
         names, (VariantDef(info, name, opts))
 ;;
 
+module C : IL.Conversion with type input = Annot.t and type output = t
+= struct
+    type input = Annot.t;;
+    type output = t;;
+    type state = Common.Var.t StringMap.t;;
+    let name = "alpha";;
+    let sexp_of_output x = sexp_of_t x;;
+    let dump_flag = ref false;;
+    let init_state () = StringMap.empty;;
+    let convert state input =
+        let state, output = convert state input in
+        state, [ output ]
+    ;;
+    let fini_state _ = ();;
+end;;
+
+module Convert : IL.Converter with type output = t
+        = IL.Make(Annot.Convert)(C);;

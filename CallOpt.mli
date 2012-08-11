@@ -90,7 +90,4 @@ type t =
     with sexp
 ;;
 
-val convert :
-    int Common.Var.Map.t -> Simplify.t -> (int Common.Var.Map.t * t)
-;;
-
+module Convert : IL.Converter with type output = t;;

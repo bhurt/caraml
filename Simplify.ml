@@ -195,3 +195,21 @@ let convert = function
         TopExpr(info, ty, Expr.convert x)
 ;;
 
+module C : IL.Conversion with type input = LambdaLift.t
+                                and type output = t =
+struct
+    type input = LambdaLift.t;;
+    type output = t;;
+    type state = unit;;
+
+    let name = "simplify";;
+    let sexp_of_output x = sexp_of_t x;;
+    let dump_flag = ref false;;
+    let init_state () = ();;
+    let convert _ input = (), [ convert input ];;
+    let fini_state _ = ();;
+end;;
+
+module Convert : IL.Converter with type output = t =
+    IL.Make(LambdaLift.Convert)(C);;
+

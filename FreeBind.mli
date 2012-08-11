@@ -1,4 +1,3 @@
 
-val convert : Common.Var.Set.t -> LambdaConv.t
-                    -> (Common.Var.Set.t * LambdaConv.t);;
+module Convert : IL.Converter with type output = LambdaConv.t;;
 

@@ -27,6 +27,7 @@ MLFILES = \
     Common.ml \
     Config.ml \
     AST.ml \
+    IL.ml \
     Parser.ml \
     Lexer.ml \
     Annot.ml \

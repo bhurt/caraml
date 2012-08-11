@@ -165,3 +165,20 @@ let convert = function
 ;;
 
 
+module C : IL.Conversion with type input = MatchReduce.t and type output = t =
+struct
+    type input = MatchReduce.t;;
+    type output = t;;
+    type state = unit;;
+
+    let name = "lambda-conv";;
+    let sexp_of_output x = sexp_of_t x;;
+    let dump_flag = ref false;;
+    let init_state () = ();;
+    let convert _ input = (), [ convert input ];;
+    let fini_state _ = ();;
+end;;
+
+module Convert : IL.Converter with type output = t =
+    IL.Make(MatchReduce.Convert)(C);;
+

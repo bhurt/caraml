@@ -16,8 +16,6 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 *)
 
-module StringMap : Map.S with type key = string;;
-
 module Expr : sig
 
     type lambda = Info.t * Common.VarType.t * Common.Var.t
@@ -50,7 +48,5 @@ type t =
     with sexp
 ;;
 
-val convert :
-    Common.Var.t StringMap.t -> Annot.t -> (Common.Var.t StringMap.t * t)
-;;
+module Convert: IL.Converter with type output = t;;
 

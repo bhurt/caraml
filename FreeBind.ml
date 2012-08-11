@@ -433,3 +433,25 @@ let convert publics = function
         publics, (TopRec(info, fns))
     | Extern(_, _, _) as x -> publics, x
 ;;
+
+module C : IL.Conversion with type input = LambdaConv.t
+                                and type output = LambdaConv.t =
+struct
+    type input = LambdaConv.t;;
+    type output = LambdaConv.t;;
+    type state = Common.Var.Set.t;;
+
+    let name = "freebind";;
+    let sexp_of_output x = LambdaConv.sexp_of_t x;;
+    let dump_flag = ref false;;
+    let init_state () = Common.Var.Set.empty;;
+    let convert state input =
+        let state, output = convert state input in
+        state, [ output ]
+    ;;
+    let fini_state _ = ();;
+end;;
+
+module Convert : IL.Converter with type output = t =
+    IL.Make(LambdaConv.Convert)(C);;
+

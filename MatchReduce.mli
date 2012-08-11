@@ -50,8 +50,5 @@ type t =
     with sexp
 ;;
 
-val convert :
-    Common.Tag.t Common.Var.Map.t -> Alpha.t
-        -> (Common.Tag.t Common.Var.Map.t * (t list))
-;;
+module Convert : IL.Converter with type output = t;;
 

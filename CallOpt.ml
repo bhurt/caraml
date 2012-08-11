@@ -230,4 +230,24 @@ let convert globals = function
         globals, TopExpr(info, ty, x)
 ;;
 
+module C : IL.Conversion with type input = Simplify.t
+                                and type output = t =
+struct
+    type input = Simplify.t;;
+    type output = t;;
+    type state = int Common.Var.Map.t;;
+
+    let name = "callopt";;
+    let sexp_of_output x = sexp_of_t x;;
+    let dump_flag = ref false;;
+    let init_state () = Common.Var.Map.empty;;
+    let convert state input =
+        let state, output = convert state input in
+        state, [ output ]
+    ;;
+    let fini_state _ = ();;
+end;;
+
+module Convert : IL.Converter with type output = t =
+    IL.Make(Simplify.Convert)(C);;
 

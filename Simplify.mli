@@ -56,8 +56,6 @@ type t =
     with sexp
 ;;
 
-val convert : LambdaLift.t -> t;;
-
-
+module Convert : IL.Converter with type output = t;;
 
 

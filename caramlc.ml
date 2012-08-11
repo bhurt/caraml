@@ -16,103 +16,46 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 *)
 
-let dump_ast = ref false;;
-let dump_annot = ref false;;
-let dump_alpha = ref false;;
-let dump_matchreduce = ref false;;
-let dump_lambdaconv = ref false;;
-let dump_freebind = ref false;;
-let dump_lambda_lift = ref false;;
-let dump_simplify = ref false;;
-let dump_callopt = ref false;;
 let dump_llvm = ref false;;
+let dump_all = ref false;;
 let echo = ref false;
 
-type dumps_t = {
-    ast_out : out_channel option;
-    annot_out : out_channel option;
-    alpha_out : out_channel option;
-    matchreduce_out : out_channel option;
-    lambdaconv_out : out_channel option;
-    freebind_out : out_channel option;
-    lambda_out : out_channel option;
-    simplify_out : out_channel option;
-    callopt_out : out_channel option;
-};;
+(* So that when this changes, it only needs to change in one place. *)
+module FinalConv = CallOpt;;
 
-type state_t = {
-    annot_map : Annot.type_env_t;
-    alpha_map : Common.Var.t Alpha.StringMap.t;
-    match_map : Common.Tag.t Common.Var.Map.t;
-    lambda_set : Common.Var.Set.t;
-    callopt_map : int Common.Var.Map.t;
-    init_fns : string option list;
-};;
+type state_t = FinalConv.Convert.state * (string option list);;
 
-let maybe_dump ocopt f x =
-    match ocopt with
-    | None -> ()
-    | Some oc ->
-        begin
-            Sexplib.Sexp.output_hum oc (f x);
-            output_char oc '\n';
-            output_char oc '\n';
-            flush oc;
-            ()
-        end
+let init_state name =
+    LlvmIntf.with_module name;
+    (FinalConv.Convert.init_state ~dump_all:(!dump_all) ~file_name:name), []
 ;;
 
-let handle_ast dumps state ast = 
-    let _ = maybe_dump dumps.ast_out AST.sexp_of_t ast in
-    let (annot_map, annot) = Annot.convert state.annot_map ast in
-    let _ = maybe_dump dumps.annot_out Annot.sexp_of_t annot in
-    let (alpha_map, alpha) = Alpha.convert state.alpha_map annot in
-    let _ = maybe_dump dumps.alpha_out Alpha.sexp_of_t alpha in
-    let (match_map, ms) = MatchReduce.convert state.match_map alpha in
-    List.fold_left
-        (fun state m ->
-            maybe_dump dumps.matchreduce_out MatchReduce.sexp_of_t m;
-            let lconv = LambdaConv.convert m in
-            let _ = maybe_dump dumps.lambdaconv_out
-                                    LambdaConv.sexp_of_t lconv
-            in
-            let (lambda_set, fbind) = FreeBind.convert state.lambda_set lconv in
-            let _ = maybe_dump dumps.freebind_out LambdaConv.sexp_of_t fbind in
-            let lambdas = LambdaLift.convert fbind in
-            List.fold_left
-                (fun state lambda ->
-                    maybe_dump dumps.lambda_out LambdaLift.sexp_of_t lambda;
-                    let simplify = Simplify.convert lambda in
-                    maybe_dump dumps.simplify_out Simplify.sexp_of_t simplify;
-                    let (callopt_map, callopt) =
-                        CallOpt.convert state.callopt_map simplify
-                    in
-                    maybe_dump dumps.callopt_out CallOpt.sexp_of_t callopt;
-                    let init_fn = Assembly.assemble callopt in
-                    {
-                        annot_map = annot_map;
-                        alpha_map = alpha_map;
-                        match_map = match_map;
-                        lambda_set = lambda_set;
-                        callopt_map = callopt_map;
-                        init_fns = init_fn :: state.init_fns;
-                    })
-                state
-                lambdas)
-        state
-        ms
+let handle_ast (state, init_fns) ast =
+    let state, callopts = FinalConv.Convert.convert state ast in
+    let init_fns =
+        List.fold_left
+            (fun init_fns callopt ->
+                let init_fn = Assembly.assemble callopt in
+                init_fn :: init_fns)
+            init_fns callopts
+    in
+    state, init_fns
 ;;
 
-let rec parse_loop lexbuf dumps state =
+let rec parse_loop lexbuf state =
     match Parser.top_level Lexer.token lexbuf with
-    | AST.EOF -> state.init_fns
-    | AST.SyntaxError -> raise Exit;
+    | AST.EOF ->
+        let _ = FinalConv.Convert.fini_state (fst state) in
+        (snd state)
+    | AST.SyntaxError ->
+        let _ = FinalConv.Convert.fini_state (fst state) in
+        raise Exit;
     | AST.Form ast ->
-        let state = handle_ast dumps state ast in
-        parse_loop lexbuf dumps state
+        let state = handle_ast state ast in
+        parse_loop lexbuf state
 ;;
 
-let add_externs dumps state =
+let add_externs state =
     let no_position = {
         Info.Position.file_name = "no file";
         Info.Position.line_num = 0;
@@ -120,16 +63,16 @@ let add_externs dumps state =
         Info.Position.col_num = 0;
     } in
     let info = no_position, no_position in
-    let state = handle_ast dumps state
-                (AST.Extern(info, "print_int", 
+    let state = handle_ast state
+                (AST.Extern(info, "print_int",
                             {   Common.External.real_name = "print_int";
                                 Common.External.return_type =
                                     Type.Base(Type.Unit);
                                 Common.External.arg_types = [
                                     Type.Base(Type.Int) ] }))
     in
-    let state = handle_ast dumps state
-                (AST.Extern(info, "print_newline", 
+    let state = handle_ast state
+                (AST.Extern(info, "print_newline",
                             {   Common.External.real_name = "print_newline";
                                 Common.External.return_type =
                                     Type.Base(Type.Unit);
@@ -138,60 +81,6 @@ let add_externs dumps state =
     in
     state
 ;;
-
-
-let maybe_out r ext name =
-    if !r then
-        Some(open_out (name ^ ext))
-    else
-        None
-;;
-
-let make_dumps name = {
-    ast_out = maybe_out dump_ast ".ast.sexp" name;
-    annot_out = maybe_out dump_annot ".annot.sexp" name;
-    alpha_out = maybe_out dump_alpha ".alpha.sexp" name;
-    matchreduce_out = maybe_out dump_matchreduce ".matchreduce.sexp" name;
-    lambdaconv_out = maybe_out dump_lambdaconv ".lambdaconv.sexp" name;
-    freebind_out = maybe_out dump_freebind ".freebind.sexp" name;
-    lambda_out = maybe_out dump_lambda_lift ".lambda-lift.sexp" name;
-    simplify_out = maybe_out dump_simplify ".simplify.sexp" name;
-    callopt_out = maybe_out dump_callopt ".callopt.sexp" name;
-};;
-
-let maybe_close = function
-    | None -> ()
-    | Some oc ->
-        let _ = close_out oc in
-        ()
-;;
-
-let close_dumps dumps =
-    maybe_close dumps.ast_out;
-    maybe_close dumps.annot_out;
-    maybe_close dumps.alpha_out;
-    maybe_close dumps.matchreduce_out;
-    maybe_close dumps.lambdaconv_out;
-    maybe_close dumps.freebind_out;
-    maybe_close dumps.lambda_out;
-    maybe_close dumps.simplify_out;
-    maybe_close dumps.callopt_out;
-    ()
-;;
-
-let init_state name = 
-    LlvmIntf.with_module name;
-    {
-        annot_map = {
-            Annot.type_map = Annot.StringMap.empty;
-            Annot.type_defn = Annot.StringMap.empty;
-        };
-        alpha_map = Alpha.StringMap.empty;
-        match_map = Common.Var.Map.empty;
-        lambda_set = Common.Var.Set.empty;
-        callopt_map = Common.Var.Map.empty;
-        init_fns = [];
-    };;
 
 let base_name name =
     try
@@ -225,7 +114,6 @@ let link_native base_name =
 
 let parse_file name =
     let base = base_name name in
-    let dumps = make_dumps base in
     begin
         try
             begin
@@ -238,8 +126,8 @@ let parse_file name =
                 lexbuf.Lexing.lex_curr_p <-
                     {   lexbuf.Lexing.lex_curr_p with
                         Lexing.pos_fname = name };
-                let state = add_externs dumps state in
-                let init_fns = parse_loop lexbuf dumps state in
+                let state = add_externs state in
+                let init_fns = parse_loop lexbuf state in
                 let _ = Assembly.create_main (List.rev init_fns) in
                 if !dump_llvm then
                     begin
@@ -255,42 +143,25 @@ let parse_file name =
             | Error.Compiler_error(msg, loc) ->
                 begin
                     Error.print_error msg loc;
-                    close_dumps dumps;
                     raise Exit
                 end
     end;
-    close_dumps dumps;
     ()
 ;;
-        
 
-let arg_spec = [
-    "--dump-ast", Arg.Set dump_ast, "Dump the AST.";
-    "--dump-annot", Arg.Set dump_annot, "Dump the type-annotated AST.";
-    "--dump-alpha", Arg.Set dump_alpha, "Dump the alpha-renamed AST.";
-    "--dump-matchreduce", Arg.Set dump_matchreduce, "Dump the match-reduced AST.";
-    "--dump-lambdaconv", Arg.Set dump_lambdaconv, "Dump the lambda converted AST.";
-    "--dump-freebind", Arg.Set dump_freebind, "Dump the bound free vars AST.";
-    "--dump-lambda-lifted", Arg.Set dump_lambda_lift, 
-        "Dump the lambda-lifted AST.";
-    "--dump-simplify", Arg.Set dump_simplify, "Dump the simplified AST.";
-    "--dump-callopt", Arg.Set dump_callopt, "Dump the call optimized AST.";
-    "--dump-llvm", Arg.Set dump_llvm, "Dump the LLVM assembly to stderr.";
-    "--dump-all", Arg.Unit
-                    (fun () ->
-                        dump_ast := true;
-                        dump_annot := true;
-                        dump_alpha := true;
-                        dump_matchreduce := true;
-                        dump_lambdaconv := true;
-                        dump_freebind := true;
-                        dump_lambda_lift := true;
-                        dump_simplify := true;
-                        dump_callopt := true;
-                        dump_llvm := true),
-        "Dump all intermediate represetations.";
-    "--echo", Arg.Set echo, "Echo the ld command to stdout.";
-    "-", Arg.String parse_file, "Parse a file that begins with a -"
+let arg_spec = List.flatten [
+    [
+        "--echo", Arg.Set echo, "Echo the ld command to stdout.";
+        "--dump-all", Arg.Unit
+                        (fun () ->
+                            dump_all := true;
+                            dump_llvm := true),
+            "Dump all intermediate represetations." ];
+    FinalConv.Convert.cmd_args;
+
+    [
+        "--dump-llvm", Arg.Set dump_llvm, "Dump the LLVM assembly to stderr.";
+        "-", Arg.String parse_file, "Parse a file that begins with a -" ]
 ];;
 
 let doc = "A native-mode compiler for the toy language caraml.";;

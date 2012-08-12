@@ -444,11 +444,14 @@ struct
     let name = "freebind";;
     let sexp_of_output x = LambdaConv.sexp_of_t x;;
     let dump_flag = ref false;;
+    let check_flag = ref false;;
     let init_state () = Common.Var.Set.empty;;
     let convert state input =
         let state, output = convert state input in
         state, [ output ]
     ;;
+    let check _ = true;;
+    let get_info _ = assert false;;
     let fini_state _ = ();;
 end;;
 

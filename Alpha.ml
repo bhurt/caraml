@@ -233,11 +233,14 @@ module C : IL.Conversion with type input = Annot.t and type output = t
     let name = "alpha";;
     let sexp_of_output x = sexp_of_t x;;
     let dump_flag = ref false;;
+    let check_flag = ref false;;
     let init_state () = StringMap.empty;;
     let convert state input =
         let state, output = convert state input in
         state, [ output ]
     ;;
+    let check _ = true;;
+    let get_info _ = assert false;;
     let fini_state _ = ();;
 end;;
 

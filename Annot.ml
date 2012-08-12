@@ -527,6 +527,7 @@ module C : IL.Conversion with type input = AST.t and type output = t = struct
     let name = "annot";;
     let sexp_of_output x = sexp_of_t x;;
     let dump_flag = ref false;;
+    let check_flag = ref false;;
     let init_state () = {
         type_map = StringMap.empty;
         type_defn = StringMap.empty;
@@ -536,6 +537,9 @@ module C : IL.Conversion with type input = AST.t and type output = t = struct
         let state, output = convert state input in
         state, [ output ]
     ;;
+
+    let check _ = true;;
+    let get_info _ = assert false;;
 
     let fini_state _ = ();;
 end;;

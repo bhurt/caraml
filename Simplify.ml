@@ -205,8 +205,11 @@ struct
     let name = "simplify";;
     let sexp_of_output x = sexp_of_t x;;
     let dump_flag = ref false;;
+    let check_flag = ref false;;
     let init_state () = ();;
     let convert _ input = (), [ convert input ];;
+    let check _ = true;;
+    let get_info _ = assert false;;
     let fini_state _ = ();;
 end;;
 

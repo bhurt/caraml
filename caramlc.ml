@@ -18,6 +18,7 @@
 
 let dump_llvm = ref false;;
 let dump_all = ref false;;
+let check_all = ref false;;
 let echo = ref false;
 
 (* So that when this changes, it only needs to change in one place. *)
@@ -27,7 +28,8 @@ type state_t = FinalConv.Convert.state * (string option list);;
 
 let init_state name =
     LlvmIntf.with_module name;
-    (FinalConv.Convert.init_state ~dump_all:(!dump_all) ~file_name:name), []
+    (FinalConv.Convert.init_state ~dump_all:(!dump_all)
+            ~check_all:(!check_all) ~file_name:name), []
 ;;
 
 let handle_ast (state, init_fns) ast =
@@ -150,17 +152,18 @@ let parse_file name =
 ;;
 
 let arg_spec = List.flatten [
-    [
-        "--echo", Arg.Set echo, "Echo the ld command to stdout.";
+    [   "--echo", Arg.Set echo, "Echo the ld command to stdout.";
         "--dump-all", Arg.Unit
                         (fun () ->
                             dump_all := true;
                             dump_llvm := true),
             "Dump all intermediate represetations." ];
-    FinalConv.Convert.cmd_args;
-
+    FinalConv.Convert.dump_cmd_args;
+    [   "--dump-llvm", Arg.Set dump_llvm, "Dump the LLVM assembly to stderr.";
+        "--check-all", Arg.Set(check_all),
+            "Type check all intermediate represetations." ];
+    FinalConv.Convert.check_cmd_args;
     [
-        "--dump-llvm", Arg.Set dump_llvm, "Dump the LLVM assembly to stderr.";
         "-", Arg.String parse_file, "Parse a file that begins with a -" ]
 ];;
 

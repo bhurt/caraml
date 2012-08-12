@@ -22,8 +22,10 @@ module type Converter = sig
     type output;;
     type state;;
 
-    val cmd_args : (Arg.key * Arg.spec * Arg.doc) list;;
-    val init_state : dump_all:bool -> file_name:string -> state;;
+    val dump_cmd_args : (Arg.key * Arg.spec * Arg.doc) list;;
+    val check_cmd_args : (Arg.key * Arg.spec * Arg.doc) list;;
+    val init_state : dump_all:bool -> check_all:bool
+                            -> file_name:string -> state;;
     val convert : state -> AST.t -> (state * (output list));;
     val fini_state : state -> unit;;
 end;;
@@ -36,8 +38,11 @@ module type Conversion = sig
     val name : string;;
     val sexp_of_output : output -> Sexplib.Sexp.t;;
     val dump_flag : bool ref;;
+    val check_flag : bool ref;;
     val init_state : unit -> state;;
     val convert : state -> input -> (state * (output list));;
+    val check : output -> bool;;
+    val get_info : output -> Info.t;;
     val fini_state : state -> unit;;
 end;;
 
@@ -46,27 +51,37 @@ module Make(I: Converter)(M: Conversion with type input=I.output)
     = struct
 
         type output = M.output;;
-        type state = I.state * M.state * (out_channel option);;
+        type state = I.state * M.state * (out_channel option) * bool;;
 
-        let cmd_args =
-            List.append I.cmd_args
+        let dump_cmd_args =
+            List.append I.dump_cmd_args
                 [   (Printf.sprintf "--dump-%s" M.name),
                     (Arg.Set M.dump_flag),
                     (Printf.sprintf
                         "Dump the Sexp representation of %s" M.name) ]
         ;;
 
-        let init_state ~dump_all ~file_name =
-            (I.init_state ~dump_all ~file_name), (M.init_state ()),
+        let check_cmd_args =
+            List.append I.check_cmd_args
+                [   (Printf.sprintf "--check-%s" M.name),
+                    (Arg.Set M.check_flag),
+                    (Printf.sprintf
+                        "Type check the result of the %s conversion" M.name) ]
+        ;;
+
+        let init_state ~dump_all ~check_all ~file_name =
+            (I.init_state ~dump_all ~check_all ~file_name),
+            (M.init_state ()),
             (if (dump_all || !M.dump_flag) then
                     Some(
                         open_out(
                             Printf.sprintf "%s.%s.sexp" file_name M.name))
                 else
-                    None)
+                    None),
+            (check_all || !M.check_flag)
         ;;
 
-        let convert (i_state, m_state, ostream) ast =
+        let convert (i_state, m_state, ostream, check) ast =
             let (i_state, inputs) = I.convert i_state ast in
             let (m_state, outputs) =
                 Utils.map_accum M.convert m_state inputs
@@ -86,10 +101,26 @@ module Make(I: Converter)(M: Conversion with type input=I.output)
                             ())
                         outputs
             in
-            (i_state, m_state, ostream), outputs
+            let _ =
+                if check then
+                    List.iter
+                        (fun x ->
+                            if not (M.check x) then
+                                let f _ =
+                                    Format.print_string
+                                        "Internal compiler error in ";
+                                    Format.print_string M.name
+                                in
+                                raise (Error.Compiler_error(f,
+                                                (M.get_info x)))
+                            else ())
+                        outputs
+                else ()
+            in
+            (i_state, m_state, ostream, check), outputs
         ;;
 
-    let fini_state (i_state, m_state, ostream) =
+    let fini_state (i_state, m_state, ostream, check) =
         begin
             match ostream with
             | None -> ()
@@ -106,13 +137,15 @@ module Base : Converter with type output = AST.t = struct
     let dump_flag = ref false;;
     type state = out_channel option;;
 
-    let cmd_args =
+    let dump_cmd_args =
         [   "--dump-ast",
             (Arg.Set dump_flag),
             "Dump the Sexp representation of ast" ]
     ;;
 
-    let init_state ~dump_all ~file_name =
+    let check_cmd_args = [];;
+
+    let init_state ~dump_all ~check_all ~file_name =
         if (dump_all || !dump_flag) then
                 Some(
                     open_out(

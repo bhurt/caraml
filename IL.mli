@@ -32,16 +32,22 @@ module type Conversion = sig
     type input;;
     type output;;
     type state;;
+    type check_state;;
 
     val name : string;;
     val sexp_of_output : output -> Sexplib.Sexp.t;;
     val dump_flag : bool ref;;
     val check_flag : bool ref;;
+
     val init_state : unit -> state;;
     val convert : state -> input -> (state * (output list));;
-    val check : output -> bool;;
-    val get_info : output -> Info.t;;
     val fini_state : state -> unit;;
+
+    val init_check_state : unit -> check_state;;
+    val check : check_state -> output -> (check_state * bool);;
+    val get_info : output -> Info.t;;
+    val fini_check_state : check_state -> unit;;
+
 end;;
 
 module Make(I: Converter)(M: Conversion with type input=I.output)

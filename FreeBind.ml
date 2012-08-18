@@ -440,19 +440,25 @@ struct
     type input = LambdaConv.t;;
     type output = LambdaConv.t;;
     type state = Common.Var.Set.t;;
+    type check_state = unit;;
 
     let name = "freebind";;
     let sexp_of_output x = LambdaConv.sexp_of_t x;;
+
     let dump_flag = ref false;;
     let check_flag = ref false;;
+
     let init_state () = Common.Var.Set.empty;;
     let convert state input =
         let state, output = convert state input in
         state, [ output ]
     ;;
-    let check _ = true;;
-    let get_info _ = assert false;;
     let fini_state _ = ();;
+
+    let init_check_state _ = ();;
+    let check _ _ = (), true;;
+    let get_info _ = assert false;;
+    let fini_check_state _ = ();;
 end;;
 
 module Convert : IL.Converter with type output = t =

@@ -193,16 +193,23 @@ struct
     type input = Alpha.t;;
     type output = t;;
     type state = Common.Tag.t Common.Var.Map.t;;
+    type check_state = unit;;
 
     let name = "match-reduce";;
     let sexp_of_output x = sexp_of_t x;;
+
     let dump_flag = ref false;;
     let check_flag = ref false;;
+
     let init_state () = Common.Var.Map.empty;;
     let convert state input = convert state input;;
-    let check _ = true;;
-    let get_info _ = assert false;;
     let fini_state _ = ();;
+
+    let init_check_state _ = ();;
+    let check _ _ = (), true;;
+    let get_info _ = assert false;;
+    let fini_check_state _ = ();;
+
 end;;
 
 module Convert: IL.Converter with type output = t

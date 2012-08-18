@@ -523,11 +523,14 @@ module C : IL.Conversion with type input = AST.t and type output = t = struct
     type input = AST.t;;
     type output = t;;
     type state = type_env_t;;
+    type check_state = unit;;
 
     let name = "annot";;
     let sexp_of_output x = sexp_of_t x;;
+
     let dump_flag = ref false;;
     let check_flag = ref false;;
+
     let init_state () = {
         type_map = StringMap.empty;
         type_defn = StringMap.empty;
@@ -538,10 +541,13 @@ module C : IL.Conversion with type input = AST.t and type output = t = struct
         state, [ output ]
     ;;
 
-    let check _ = true;;
-    let get_info _ = assert false;;
-
     let fini_state _ = ();;
+
+    let init_check_state _ = ();;
+    let check _ _ = (), true;;
+    let get_info _ = assert false;;
+    let fini_check_state _ = ();;
+
 end;;
 
 module Convert : IL.Converter with type output = t = IL.Make(IL.Base)(C);;

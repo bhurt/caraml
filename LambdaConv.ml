@@ -170,16 +170,23 @@ struct
     type input = MatchReduce.t;;
     type output = t;;
     type state = unit;;
+    type check_state = unit;;
 
     let name = "lambda-conv";;
     let sexp_of_output x = sexp_of_t x;;
+
     let dump_flag = ref false;;
     let check_flag = ref false;;
+
     let init_state () = ();;
     let convert _ input = (), [ convert input ];;
-    let check _ = true;;
-    let get_info _ = assert false;;
     let fini_state _ = ();;
+
+    let init_check_state _ = ();;
+    let check _ _ = (), true;;
+    let get_info _ = assert false;;
+    let fini_check_state _ = ();;
+
 end;;
 
 module Convert : IL.Converter with type output = t =

@@ -1,26 +1,20 @@
 In vague order:
 
-- Add general recurion (let rec), functions only!
-
-- Refactor LambdaLift into multiple passes.
-
-- Add internal let rec <defs> in <expr> w/binding
-
-- Add support for floats
-
-- Add support for strings
-
-- Add variant types and simple 1-level pattern matching (case)
-
 - Add complex pattern matching (match), get rid of let-tuple and case
 
 - Switch from let-style to defn-style for global definitions
 
+- Add significant whitespace to parser.
+
 - Add type variables, polymorphic functions (half-mlton)
+
+- Write lots of unit tests- core language is basically in place.
 
 - Add support for large (> 32 elems) tuples.
 
-- Add simple garbage collection (stop-the-world mark-sweep), shadow stack
+- Add support for strings
+
+- Add structures
 
 - Add support for segmented (infinite) stacks.
 
@@ -32,7 +26,7 @@ In vague order:
 
 - Add deferreds, remove non-monad mutation.
 
-- GC only between deferreds- remove shadow stack.
+- Add GC (stop-the-word generational copying)
 
 - Add builtins (calling into native code)
 
@@ -40,23 +34,21 @@ In vague order:
 
 - Add pattern matching on operators
 
-- Add where clause?
-
 - Add rank-2 polymorphism
 
-- Better GC (stop-the-word generational copying)
-
-- Best GC (parallel & concurrent generational copying)
-
 - Add repl
-
-- Write stdlib
 
 - Add STM
 
 - Add lazy -- add let rec for lazy values.
 
+- contracts
+
 - GADTs?
+
+- Write stdlib
+
+- Best GC (parallel & concurrent generational copying)
 
 - Optimization: use aggregates for functions returning tuples?
 
@@ -91,3 +83,4 @@ In vague order:
                     in
                     expr3
 
+- CloudMagus (see CloudHaskell)

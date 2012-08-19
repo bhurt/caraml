@@ -22,212 +22,199 @@ module InnerExpr = struct
 
     (* An inner expression is any expression not in the tail position *)
 
-    type t =
-        | Let of Info.t * Common.VarType.t * Common.Arg.t * t * t
-        | If of Info.t * Common.VarType.t * t * t * t
-        | AllocTuple of Info.t * Common.VarType.t * Common.Tag.t
-                            * (Common.VarType.t * Common.Var.t) list
-        | GetField of Info.t * Common.VarType.t * int
-                            * (Common.VarType.t * Common.Var.t)
-        | Case of Info.t * Common.VarType.t
-                        * (Common.VarType.t * Common.Var.t)
-                        * ((Common.Tag.t * t) list)
-        | Label of Info.t * Common.VarType.t * t * Common.Var.t
-                                * Common.VarType.t Common.Var.Map.t * t
-        | Goto of Info.t * Common.Var.t
+    type s =
+        | Let of Common.Arg.t * t * t
+        | If of t * t * t
+        | AllocTuple of Common.Tag.t * (Common.VarType.t * Common.Var.t) list
+        | GetField of int * (Common.VarType.t * Common.Var.t)
+        | Case of (Common.VarType.t * Common.Var.t) * ((Common.Tag.t * t) list)
+        | Label of t * Common.Var.t * Common.VarType.t Common.Var.Map.t * t
+        | Goto of Common.Var.t
                     * ((Common.VarType.t * Common.Var.t) Common.Var.Map.t)
-        | BinOp of Info.t * Common.VarType.t * t * Common.BinOp.t * t
-        | UnOp of Info.t * Common.VarType.t * Common.UnOp.t * t
-        | InnerApply of Info.t * Common.VarType.t
-                            * (Common.VarType.t * Common.Var.t)
+        | BinOp of t * Common.BinOp.t * t
+        | UnOp of Common.UnOp.t * t
+        | InnerApply of (Common.VarType.t * Common.Var.t)
                             * ((Common.VarType.t * Common.Var.t) list)
-        | InnerSafeApply of Info.t * Common.VarType.t
-                                * (Common.VarType.t * Common.Var.t) * int
+        | InnerSafeApply of (Common.VarType.t * Common.Var.t) * int
                                 * ((Common.VarType.t * Common.Var.t) list)
-        | InnerCall of Info.t * Common.VarType.t
-                            * (Common.VarType.t * Common.Var.t)
+        | InnerCall of (Common.VarType.t * Common.Var.t)
                             * ((Common.VarType.t * Common.Var.t) list)
-        | Var of Info.t * Common.VarType.t * Common.Var.t
-        | Const of Info.t * Common.VarType.t * Common.Const.t
-        | CallExtern of Info.t * Common.VarType.t
-                            * Common.Var.t Common.External.t
+        | Var of Common.Var.t
+        | Const of Common.Const.t
+        | CallExtern of Common.Var.t Common.External.t
                             * ((Common.VarType.t * Common.Var.t) list)
-        with sexp
+    and t = {
+        info: Info.t;
+        typ: Common.VarType.t;
+        body: s;
+    } with sexp;;
+
+    let rec convert globals expr =
+        let info = expr.Simplify.Expr.info in
+        let ty = expr.Simplify.Expr.typ in
+        let body =
+            match expr.Simplify.Expr.body with
+            | Simplify.Expr.Let(arg, x, y) ->
+                let x = convert globals x in
+                let y = convert globals y in
+                Let(arg, x, y)
+            | Simplify.Expr.If(x, y, z) ->
+                let x = convert globals x in
+                let y = convert globals y in
+                let z = convert globals z in
+                If(x, y, z)
+            | Simplify.Expr.AllocTuple(tag, xs)
+                -> AllocTuple(tag, xs)
+            | Simplify.Expr.GetField(n, v)
+                -> GetField(n, v)
+            | Simplify.Expr.Case(n, opts)
+                -> let opts =
+                        List.map
+                            (fun (tag, x) -> tag, (convert globals x)) opts
+                    in
+                    Case(n, opts)
+            | Simplify.Expr.Label(x, label, bindings, y) ->
+                let x = convert globals x in
+                let y = convert globals y in
+                Label(x, label, bindings, y)
+            | Simplify.Expr.Goto(label, bindings) ->
+                Goto(label, bindings)
+            | Simplify.Expr.BinOp(x, op, y) ->
+                let x = convert globals x in
+                let y = convert globals y in
+                BinOp(x, op,y)
+            | Simplify.Expr.UnOp(op, x) ->
+                let x = convert globals x in
+                UnOp(op, x)
+            | Simplify.Expr.Apply(f, xs) ->
+                begin
+                    try
+                        let nargs = Common.Var.Map.find (snd f) globals in
+                        let nparams = List.length xs in
+                        if (nparams == nargs) then
+                            InnerCall(f, xs)
+                        else if (nparams > nargs) then
+                            let call_args = Utils.take nargs xs in
+                            let apply_args = Utils.drop nargs xs in
+                            let call_ty =
+                                List.fold_right
+                                    (fun t1 t2 -> Type.Arrow(t1, t2))
+                                    (List.map fst apply_args)
+                                    ty
+                            in
+                            let name = Common.Var.generate () in
+                            Let((call_ty, Some name),
+                                { info; typ = call_ty;
+                                    body = InnerCall(f, call_args) },
+                                { info; typ = ty;
+                                    body = InnerApply((call_ty, name),
+                                                            apply_args) })
+                        else
+                            InnerSafeApply(f, nargs, xs)
+                    with
+                    | Not_found ->
+                        InnerApply(f,  xs)
+                end
+            | Simplify.Expr.Var(v) ->
+                Var(v)
+            | Simplify.Expr.Const(c) ->
+                Const(c)
+            | Simplify.Expr.CallExtern(xtern, xs) ->
+                CallExtern(xtern, xs)
+        in
+        { info; typ = ty; body }
     ;;
 
-    let rec convert globals = function
-        | Simplify.Expr.Let(info, ty, arg, x, y) ->
-            let x = convert globals x in
-            let y = convert globals y in
-            Let(info, ty, arg, x, y)
-        | Simplify.Expr.If(info, ty, x, y, z) ->
-            let x = convert globals x in
-            let y = convert globals y in
-            let z = convert globals z in
-            If(info, ty, x, y, z)
-        | Simplify.Expr.AllocTuple(info, ty, tag, xs)
-            -> AllocTuple(info, ty, tag, xs)
-        | Simplify.Expr.GetField(info, ty, n, v) -> GetField(info, ty, n, v)
-        | Simplify.Expr.Case(info, ty, n, opts) ->
-            let opts =
-                List.map (fun (tag, x) -> tag, (convert globals x)) opts
-            in
-            Case(info, ty, n, opts)
-        | Simplify.Expr.Label(info, ty, x, label, bindings, y) ->
-            let x = convert globals x in
-            let y = convert globals y in
-            Label(info, ty, x, label, bindings, y)
-        | Simplify.Expr.Goto(info, label, bindings) ->
-            Goto(info, label, bindings)
-        | Simplify.Expr.BinOp(info, ty, x, op, y) ->
-            let x = convert globals x in
-            let y = convert globals y in
-            BinOp(info, ty, x, op,y)
-        | Simplify.Expr.UnOp(info, ty, op, x) ->
-            let x = convert globals x in
-            UnOp(info, ty, op, x)
-        | Simplify.Expr.Apply(info, ty, f, xs) ->
-            begin
-                try
-                    let nargs = Common.Var.Map.find (snd f) globals in
-                    let nparams = List.length xs in
-                    if (nparams == nargs) then
-                        InnerCall(info, ty, f, xs)
-                    else if (nparams > nargs) then
-                        let call_args = Utils.take nargs xs in
-                        let apply_args = Utils.drop nargs xs in
-                        let call_ty =
-                            List.fold_right
-                                (fun t1 t2 -> Type.Arrow(t1, t2))
-                                (List.map fst apply_args)
-                                ty
-                        in
-                        let name = Common.Var.generate () in
-                        Let(info, ty, (call_ty, Some name),
-                            InnerCall(info, call_ty, f, call_args),
-                            InnerApply(info, ty, (call_ty, name),
-                                                        apply_args))
-                    else
-                        InnerSafeApply(info, ty, f, nargs, xs)
-                with
-                | Not_found ->
-                    InnerApply(info, ty, f,  xs)
-            end
-        | Simplify.Expr.Var(info, ty, v) ->
-            Var(info, ty, v)
-        | Simplify.Expr.Const(info, ty, c) ->
-            Const(info, ty, c)
-        | Simplify.Expr.CallExtern(info, ty, xtern, xs) ->
-            CallExtern(info, ty, xtern, xs)
-    ;;
-
-    let get_type = function
-        | Let(_, ty, _, _, _)
-        | If(_, ty, _, _, _)
-        | AllocTuple(_, ty, _, _)
-        | GetField(_, ty, _, _)
-        | Case(_, ty, _, _)
-        | Label(_, ty, _, _, _, _)
-        | BinOp(_, ty, _, _, _)
-        | UnOp(_, ty, _, _)
-        | InnerApply(_, ty, _, _)
-        | InnerSafeApply(_, ty, _, _, _)
-        | InnerCall(_, ty, _, _)
-        | Var(_, ty, _)
-        | Const(_, ty, _)
-        | CallExtern(_, ty, _, _)
-        -> ty
-
-        | Goto(_, _, _) -> Type.Base(Type.Unit)
-    ;;
+    let get_type x = x.typ;;
 
 end;;
 
 
 module TailExpr = struct
 
-    type t =
+    type s =
         | Return of InnerExpr.t
-        | Let of Info.t * Common.VarType.t * Common.Arg.t * InnerExpr.t * t
-        | If of Info.t * Common.VarType.t * InnerExpr.t * t * t
-        | Case of Info.t * Common.VarType.t
-                    * (Common.VarType.t * Common.Var.t)
-                    * ((Common.Tag.t * t) list)
-        | Label of Info.t * Common.VarType.t * t * Common.Var.t
-                                * Common.VarType.t Common.Var.Map.t * t
-        | Goto of Info.t * Common.Var.t
+        | Let of Common.Arg.t * InnerExpr.t * t
+        | If of InnerExpr.t * t * t
+        | Case of (Common.VarType.t * Common.Var.t) * ((Common.Tag.t * t) list)
+        | Label of t * Common.Var.t * Common.VarType.t Common.Var.Map.t * t
+        | Goto of Common.Var.t
                     * ((Common.VarType.t * Common.Var.t) Common.Var.Map.t)
-        | TailCall of Info.t * Common.VarType.t
-                            * (Common.VarType.t * Common.Var.t)
+        | TailCall of (Common.VarType.t * Common.Var.t)
                             * ((Common.VarType.t * Common.Var.t) list)
-        | TailCallExtern of Info.t * Common.VarType.t
-                                * Common.Var.t Common.External.t
+        | TailCallExtern of Common.Var.t Common.External.t
                                 * ((Common.VarType.t * Common.Var.t) list)
-        with sexp
-    ;;
+    and t = {
+        info : Info.t;
+        typ: Common.VarType.t;
+        body: s;
+    } with sexp;;
 
-    let rec return = function
-        | InnerExpr.Let(info, ty, v, x, y) ->
-            Let(info, ty, v, x, return y)
-        | InnerExpr.If(info, ty, x, y, z) ->
-            If(info, ty, x, return y, return z)
-        | InnerExpr.Case(info, ty, n, opts) ->
-            let opts = List.map (fun (tag, x) -> tag, return x) opts in
-            Case(info, ty, n, opts)
-        | InnerExpr.Label(info, ty, x, label, bindings, y) ->
-            Label(info, ty, (return x), label, bindings, (return y))
-        | InnerExpr.Goto(info, label, bindings) ->
-            Goto(info, label, bindings)
-        | InnerExpr.InnerCall(info, ty, f, xs) ->
-            TailCall(info, ty, f, xs)
-        | InnerExpr.CallExtern(info, ty, xtern, xs) ->
-            TailCallExtern(info, ty, xtern, xs)
-        | x -> Return x
+    let rec return expr =
+        let info = expr.InnerExpr.info in
+        let typ = expr.InnerExpr.typ in
+        let body =
+            match expr.InnerExpr.body with
+            | InnerExpr.Let(v, x, y) ->
+                Let(v, x, return y)
+            | InnerExpr.If(x, y, z) ->
+                If(x, return y, return z)
+            | InnerExpr.Case(n, opts) ->
+                let opts = List.map (fun (tag, x) -> tag, return x) opts in
+                Case(n, opts)
+            | InnerExpr.Label(x, label, bindings, y) ->
+                Label((return x), label, bindings, (return y))
+            | InnerExpr.Goto(label, bindings) ->
+                Goto(label, bindings)
+            | InnerExpr.InnerCall(f, xs) ->
+                TailCall(f, xs)
+            | InnerExpr.CallExtern(xtern, xs) ->
+                TailCallExtern(xtern, xs)
+            | x -> Return expr
+        in
+        { info; typ; body }
     ;;
 
     let convert globals x = return (InnerExpr.convert globals x);;
 
-    let get_type = function
-        | Return(x) -> InnerExpr.get_type x
-        | Let(_, ty, _, _, _)
-        | If(_, ty, _, _, _)
-        | Case(_, ty, _, _)
-        | Label(_, ty, _, _, _, _)
-        | TailCall(_, ty, _, _)
-        | TailCallExtern(_, ty, _, _)
-        -> ty
-
-        | Goto(_, _, _) -> Type.Base(Type.Unit)
-    ;;
+    let get_type x = x.typ;;
 
 end;;
 
-type t =
-    | TopFun of Info.t * Common.VarType.t * Common.Var.t
-                    * Common.Arg.t list * TailExpr.t
-    | TopVar of Info.t * Common.VarType.t * Common.Var.t * InnerExpr.t
-    | TopForward of Info.t * Common.VarType.t * Common.Var.t * int
-    | TopExpr of Info.t * Common.VarType.t * InnerExpr.t
-    with sexp
-;;
+type s =
+    | TopFun of Common.Var.t * Common.Arg.t list * TailExpr.t
+    | TopVar of Common.Var.t * InnerExpr.t
+    | TopForward of Common.Var.t * int
+    | TopExpr of InnerExpr.t
+and t = {
+    info: Info.t;
+    typ: Common.VarType.t;
+    body: s;
+} with sexp;;
 
-let convert globals = function
-    | Simplify.TopFun(info, ty, v, args, x) ->
-        let x = TailExpr.convert globals x in
-        (Common.Var.Map.add v (List.length args) globals),
-        TopFun(info, ty, v, args, x)
+let convert globals top =
+    let info = top.Simplify.info in
+    let typ = top.Simplify.typ in
+    let globals, body =
+        match top.Simplify.body with
+        | Simplify.TopFun(v, args, x) ->
+            let x = TailExpr.convert globals x in
+            (Common.Var.Map.add v (List.length args) globals),
+            TopFun(v, args, x)
 
-    | Simplify.TopVar(info, ty, v, x) ->
-        let x = InnerExpr.convert globals x in
-        globals, TopVar(info, ty, v, x)
+        | Simplify.TopVar(v, x) ->
+            let x = InnerExpr.convert globals x in
+            globals, TopVar(v, x)
 
-    | Simplify.TopForward(info, ty, n, nargs) ->
-        (Common.Var.Map.add n nargs globals),
-        TopForward(info, ty, n, nargs)
+        | Simplify.TopForward(n, nargs) ->
+            (Common.Var.Map.add n nargs globals),
+            TopForward(n, nargs)
 
-    | Simplify.TopExpr(info, ty, x) ->
-        let x = InnerExpr.convert globals x in
-        globals, TopExpr(info, ty, x)
+        | Simplify.TopExpr(x) ->
+            let x = InnerExpr.convert globals x in
+            globals, TopExpr(x)
+    in
+    globals, { info; typ; body }
 ;;
 
 module C : IL.Conversion with type input = Simplify.t

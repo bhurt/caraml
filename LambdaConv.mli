@@ -16,39 +16,55 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 *)
 
-module Expr : sig
+module rec Lambda : sig
 
-    type lambda = Info.t * Common.VarType.t * Common.Var.t
-                                            * (Common.Arg.t list) * t
-    and t =
-        | Let of Info.t * Common.VarType.t * Common.Arg.t * t * t
-        | LetFn of Info.t * Common.VarType.t * lambda * t
-        | LetRec of Info.t * Common.VarType.t * (lambda list) * t
-        | If of Info.t * Common.VarType.t * t * t * t
-        | AllocTuple of Info.t * Common.VarType.t * Common.Tag.t * (t list)
-        | GetField of Info.t * Common.VarType.t * int * t
-        | Case of Info.t * Common.VarType.t * (Common.VarType.t * Common.Var.t)
-                        * ((Common.Tag.t * t) list)
-        | Label of Info.t * Common.VarType.t * t * Common.Var.t
-                                * Common.VarType.t Common.Var.Map.t * t
-        | Goto of Info.t * Common.Var.t * (t Common.Var.Map.t)
-        | BinOp of Info.t * Common.VarType.t * t * Common.BinOp.t * t
-        | UnOp of Info.t * Common.VarType.t * Common.UnOp.t * t
-        | Apply of Info.t * Common.VarType.t * t * t
-        | Var of Info.t * Common.VarType.t * Common.Var.t
-        | Const of Info.t * Common.VarType.t * Common.Const.t
-        with sexp
-    ;;
+    type t = {
+        info: Info.t;
+        typ: Common.VarType.t;
+        name: Common.Var.t;
+        args: Common.Arg.t list;
+        body: Expr.t;
+    } with sexp;;
+
+    val make : Info.t -> Common.VarType.t -> Common.Var.t
+                -> Common.Arg.t list -> Expr.t -> t;;
+
+end and Expr : sig
+
+    type s =
+        | Let of Common.Arg.t * t * t
+        | LetFn of Lambda.t * t
+        | LetRec of (Lambda.t list) * t
+        | If of t * t * t
+        | AllocTuple of Common.Tag.t * (t list)
+        | GetField of int * t
+        | Case of (Common.VarType.t * Common.Var.t) * ((Common.Tag.t * t) list)
+        | Label of t * Common.Var.t * Common.VarType.t Common.Var.Map.t * t
+        | Goto of Common.Var.t * (t Common.Var.Map.t)
+        | BinOp of t * Common.BinOp.t * t
+        | UnOp of Common.UnOp.t * t
+        | Apply of t * t
+        | Var of Common.Var.t
+        | Const of Common.Const.t
+    and t = {
+        info : Info.t;
+        typ: Common.VarType.t;
+        body: s;
+    } with sexp;;
+
+    val make : Info.t -> Common.VarType.t -> s -> t;;
 
 end;;
 
-type t =
-    | Top of Info.t * Common.VarType.t * Common.Var.t option * Expr.t
-    | TopFn of Info.t * Common.VarType.t * Expr.lambda
-    | TopRec of Info.t * (Expr.lambda list)
-    | Extern of Info.t * Common.Var.t * Common.Var.t Common.External.t
-    with sexp
-;;
+type s =
+    | Top of Common.VarType.t * Common.Var.t option * Expr.t
+    | TopFn of Common.VarType.t * Lambda.t
+    | TopRec of (Lambda.t list)
+    | Extern of Common.Var.t * Common.Var.t Common.External.t
+and t = {
+    info : Info.t;
+    body: s;
+} with sexp;;
 
 module Convert : IL.Converter with type output = t;;
 

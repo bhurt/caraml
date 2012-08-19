@@ -23,44 +23,61 @@ end;;
 
 type type_t = CheckedString.t Type.t with sexp;;
 
-module Pattern : sig
+module rec Pattern : sig
 
-    type t = Pattern of Info.t * string * ((type_t * string option) list)
-                with sexp;;
+    type s = Pattern of string * ((type_t * string option) list)
+    and t = {
+        info: Info.t;
+        match_type : type_t;
+        body: s
+    } with sexp;;
+
+end and Arg : sig
+
+    type t = (type_t * (string option)) with sexp;;
+
+end and Lambda : sig
+
+    type t = {
+        info: Info.t;
+        typ: type_t;
+        name: string;
+        args: Arg.t list;
+        body: Expr.t
+    } with sexp;;
+
+end and Expr : sig
+
+    type s =
+        | Lambda of Arg.t list * t
+        | Let of Arg.t * t * t
+        | LetTuple of Arg.t list * t * t
+        | LetRec of (Lambda.t list) * t
+        | If of t * t * t
+        | Match of t * ((Pattern.t * t) list)
+        | Tuple of t list
+        | BinOp of t * Common.BinOp.t * t
+        | UnOp of Common.UnOp.t * t
+        | Apply of t * t
+        | Var of string
+        | Const of Common.Const.t
+    and t = {
+        info : Info.t;
+        typ: type_t;
+        body: s;
+    } with sexp;;
 
 end;;
 
-module Expr : sig
-
-    type arg = (type_t * (string option)) with sexp;;
-
-    type lambda = Info.t * type_t * string * (arg list) * t
-    and t =
-        | Lambda of Info.t * type_t * arg list * t
-        | Let of Info.t * type_t * arg * t * t
-        | LetTuple of Info.t * type_t * arg list * t * t
-        | LetRec of Info.t * type_t * (lambda list) * t
-        | If of Info.t * type_t * t * t * t
-        | Match of Info.t * type_t * t * ((Pattern.t * t) list)
-        | Tuple of Info.t * type_t * t list
-        | BinOp of Info.t * type_t * t * Common.BinOp.t * t
-        | UnOp of Info.t * type_t * Common.UnOp.t * t
-        | Apply of Info.t * type_t * t * t
-        | Var of Info.t * type_t * string
-        | Const of Info.t * type_t * Common.Const.t
-        with sexp
-    ;;
-
-end;;
-
-type t =
-    | Top of Info.t * type_t * string option * Expr.t
-    | TopRec of Info.t * (Expr.lambda list)
-    | Extern of Info.t * string * CheckedString.t Common.External.t
-    | VariantDef of Info.t * string
-                        * ((Info.t * string * (type_t list)) list)
-    with sexp
-;;
+type s =
+    | Top of type_t * string option * Expr.t
+    | TopRec of (Lambda.t list)
+    | Extern of string * CheckedString.t Common.External.t
+    | VariantDef of string * ((Info.t * string * (type_t list)) list)
+and t = {
+    info: Info.t;
+    body: s;
+} with sexp;;
 
 module Convert: IL.Converter with type output = t;;
 

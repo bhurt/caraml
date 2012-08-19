@@ -66,20 +66,22 @@ let add_externs state =
     } in
     let info = no_position, no_position in
     let state = handle_ast state
-                (AST.Extern(info, "print_int",
+                { AST.info = info; AST.body =
+                    (AST.Extern("print_int",
                             {   Common.External.real_name = "print_int";
                                 Common.External.return_type =
                                     Type.Base(Type.Unit);
                                 Common.External.arg_types = [
-                                    Type.Base(Type.Int) ] }))
+                                    Type.Base(Type.Int) ] })) }
     in
     let state = handle_ast state
-                (AST.Extern(info, "print_newline",
+                { AST.info = info; AST.body =
+                (AST.Extern("print_newline",
                             {   Common.External.real_name = "print_newline";
                                 Common.External.return_type =
                                     Type.Base(Type.Unit);
                                 Common.External.arg_types = [
-                                    Type.Base(Type.Unit) ] }))
+                                    Type.Base(Type.Unit) ] })) }
     in
     state
 ;;

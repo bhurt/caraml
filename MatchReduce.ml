@@ -18,174 +18,241 @@
 
 open Sexplib.Conv;;
 
-module Expr = struct
+module rec Lambda : sig
 
-    type lambda = Info.t * Common.VarType.t * Common.Var.t
-                            * (Common.Arg.t list) * t
-    and t =
-        | Lambda of Info.t * Common.VarType.t * Common.Arg.t list * t
-        | Let of Info.t * Common.VarType.t * Common.Arg.t * t * t
-        | LetRec of Info.t * Common.VarType.t * (lambda list) * t
-        | If of Info.t * Common.VarType.t * t * t * t
-        | AllocTuple of Info.t * Common.VarType.t * Common.Tag.t * (t list)
-        | GetField of Info.t * Common.VarType.t * int * t
-        | Case of Info.t * Common.VarType.t
-                    * (Common.VarType.t * Common.Var.t)
-                    * ((Common.Tag.t * t) list)
-        | Label of Info.t * Common.VarType.t * t * Common.Var.t
-                                * Common.VarType.t Common.Var.Map.t * t
-        | Goto of Info.t * Common.Var.t * (t Common.Var.Map.t)
-        | BinOp of Info.t * Common.VarType.t * t * Common.BinOp.t * t
-        | UnOp of Info.t * Common.VarType.t * Common.UnOp.t * t
-        | Apply of Info.t * Common.VarType.t * t * t
-        | Var of Info.t * Common.VarType.t * Common.Var.t
-        | Const of Info.t * Common.VarType.t * Common.Const.t
-        with sexp
-    ;;
+    type t = {
+        info: Info.t;
+        typ: Common.VarType.t;
+        name: Common.Var.t;
+        args: (Common.Arg.t list);
+        body: Expr.t;
+    } with sexp;;
+
+    val convert : Common.Tag.t Common.Var.Map.t -> Alpha.Lambda.t -> t;;
+
+end = struct
+
+    type t = {
+        info: Info.t;
+        typ: Common.VarType.t;
+        name: Common.Var.t;
+        args: (Common.Arg.t list);
+        body: Expr.t;
+    } with sexp;;
+
+    let convert tagmap x = {
+        info = x.Alpha.Lambda.info;
+        typ = x.Alpha.Lambda.typ;
+        name = x.Alpha.Lambda.name;
+        args = x.Alpha.Lambda.args;
+        body = Expr.convert tagmap x.Alpha.Lambda.body;
+    };;
+
+end and Expr : sig
+
+    type s =
+        | Lambda of Common.Arg.t list * t
+        | Let of Common.Arg.t * t * t
+        | LetRec of (Lambda.t list) * t
+        | If of t * t * t
+        | AllocTuple of Common.Tag.t * (t list)
+        | GetField of int * t
+        | Case of (Common.VarType.t * Common.Var.t) * ((Common.Tag.t * t) list)
+        | Label of t * Common.Var.t * Common.VarType.t Common.Var.Map.t * t
+        | Goto of Common.Var.t * (t Common.Var.Map.t)
+        | BinOp of t * Common.BinOp.t * t
+        | UnOp of Common.UnOp.t * t
+        | Apply of t * t
+        | Var of Common.Var.t
+        | Const of Common.Const.t
+    and t = {
+        info : Info.t;
+        typ: Common.VarType.t;
+        body: s;
+    } with sexp;;
+
+    val convert : Common.Tag.t Common.Var.Map.t -> Alpha.Expr.t -> t;;
+
+end = struct
+
+    type s =
+        | Lambda of Common.Arg.t list * t
+        | Let of Common.Arg.t * t * t
+        | LetRec of (Lambda.t list) * t
+        | If of t * t * t
+        | AllocTuple of Common.Tag.t * (t list)
+        | GetField of int * t
+        | Case of (Common.VarType.t * Common.Var.t) * ((Common.Tag.t * t) list)
+        | Label of t * Common.Var.t * Common.VarType.t Common.Var.Map.t * t
+        | Goto of Common.Var.t * (t Common.Var.Map.t)
+        | BinOp of t * Common.BinOp.t * t
+        | UnOp of Common.UnOp.t * t
+        | Apply of t * t
+        | Var of Common.Var.t
+        | Const of Common.Const.t
+    and t = {
+        info : Info.t;
+        typ: Common.VarType.t;
+        body: s;
+    } with sexp;;
+
 
     let load_args info ty src body args =
         Utils.fold_righti
             (fun i (ty', v) z ->
                 match v with
                 | Some(n) ->
-                    Let(info, ty, (ty', v),
-                            GetField(info, ty', i, src), z)
+                    {   info = info;
+                        typ = ty;
+                        body = Let((ty', v),
+                                    {   info = info;
+                                        typ = ty';
+                                        body = GetField(i, src) },
+                                    z) }
                 | None -> z)
             args
             body
     ;;
 
-    let get_type = function
-        | Alpha.Expr.Lambda(_, ty, _, _)
-        | Alpha.Expr.Let(_, ty, _, _, _)
-        | Alpha.Expr.LetTuple(_, ty, _, _, _)
-        | Alpha.Expr.LetRec(_, ty, _, _)
-        | Alpha.Expr.If(_, ty, _, _, _)
-        | Alpha.Expr.Match(_, ty, _, _)
-        | Alpha.Expr.Tuple(_, ty, _)
-        | Alpha.Expr.BinOp(_, ty, _, _, _)
-        | Alpha.Expr.UnOp(_, ty, _, _)
-        | Alpha.Expr.Apply(_, ty, _, _)
-        | Alpha.Expr.Var(_, ty, _)
-        | Alpha.Expr.Const(_, ty, _)
-        ->ty
-    ;;
+    let rec convert tagmap x =
+        let info = x.Alpha.Expr.info in
+        let typ = x.Alpha.Expr.typ in
 
-    let rec convert tagmap = function
-        | Alpha.Expr.Lambda(info, ty, args, x) ->
-            let x = convert tagmap x in
-            Lambda(info, ty, args, x)
-        | Alpha.Expr.Let(info, ty, arg, x, y) ->
-            let x = convert tagmap x in
-            let y = convert tagmap y in
-            Let(info, ty, arg, x, y)
-        | Alpha.Expr.LetTuple(info, ty, args, x, y) ->
-            let name = Common.Var.generate () in
-            let tuple_ty = Type.Tuple(List.map fst args) in
-            let var = Var(info, tuple_ty, name) in
-            Let(info, ty,
-                    (tuple_ty, Some name),
-                    (convert tagmap x),
-                    (load_args info ty var (convert tagmap y) args))
-        | Alpha.Expr.LetRec(info, ty, fns, x) ->
-            let fns = List.map
-                            (fun (i, ty, n, args, x) ->
-                                (i, ty, n, args, convert tagmap x))
-                            fns
-            in
-            let x = convert tagmap x in
-            LetRec(info, ty, fns, x)
-        | Alpha.Expr.If(info, ty, x, y, z) ->
-            let x = convert tagmap x in
-            let y = convert tagmap y in
-            let z = convert tagmap z in
-            If(info, ty, x, y, z)
-        | Alpha.Expr.Match(info, ty, x, bindings) ->
-            let x_ty = get_type x in
-            let name = Common.Var.generate () in
-            let var = Var(info, x_ty, name) in
-            Let(info, ty,
-                    (x_ty, Some name),
-                    (convert tagmap x),
-                    Case(info, ty, (x_ty, name), 
-                            List.map
-                                (fun (info, name, args, x) ->
-                                    let tag =
-                                        Common.Var.Map.find name tagmap
-                                    in
-                                    let x = convert tagmap x in
-                                    tag, (load_args info ty var x args))
-                                bindings))
-        | Alpha.Expr.Tuple(info, ty, xs) ->
-            let xs = List.map (convert tagmap) xs in
-            AllocTuple(info, ty, (Common.Tag.of_int 0), xs)
-        | Alpha.Expr.BinOp(info, ty, x, op, y) ->
-            let x = convert tagmap x in
-            let y = convert tagmap y in
-            BinOp(info, ty, x, op, y)
-        | Alpha.Expr.UnOp(info, ty, op, x) ->
-            let x = convert tagmap x in
-            UnOp(info, ty, op, x)
-        | Alpha.Expr.Apply(info, ty, x, y) ->
-            let x = convert tagmap x in
-            let y = convert tagmap y in
-            Apply(info, ty, x, y)
-        | Alpha.Expr.Var(info, ty, v) -> Var(info, ty, v)
-        | Alpha.Expr.Const(info, ty, c) -> Const(info, ty, c)
+        let body = match x.Alpha.Expr.body with
+            | Alpha.Expr.Lambda(args, x) ->
+                let x = convert tagmap x in
+                Lambda(args, x)
+            | Alpha.Expr.Let(arg, x, y) ->
+                let x = convert tagmap x in
+                let y = convert tagmap y in
+                Let(arg, x, y)
+            | Alpha.Expr.LetTuple(args, x, y) ->
+                let name = Common.Var.generate () in
+                let tuple_ty = Type.Tuple(List.map fst args) in
+                let var = { info = info;
+                            typ = tuple_ty;
+                            body = Var(name) }
+                in
+                Let((tuple_ty, Some name),
+                        (convert tagmap x),
+                        (load_args info typ var (convert tagmap y) args))
+            | Alpha.Expr.LetRec(fns, x) ->
+                let fns = List.map (Lambda.convert tagmap) fns in
+                let x = convert tagmap x in
+                LetRec(fns, x)
+            | Alpha.Expr.If(x, y, z) ->
+                let x = convert tagmap x in
+                let y = convert tagmap y in
+                let z = convert tagmap z in
+                If(x, y, z)
+            | Alpha.Expr.Match(x, bindings) ->
+                let name = Common.Var.generate () in
+                let var = { info = info;
+                            typ = x.Alpha.Expr.typ;
+                            body = Var(name) }
+                in
+                let compile_match (pat, x) =
+                    match pat.Alpha.Pattern.body with
+                    | Alpha.Pattern.Pattern(name, args) ->
+                        let tag = Common.Var.Map.find name tagmap in
+                        let x = convert tagmap x in
+                        tag, (load_args pat.Alpha.Pattern.info typ var x args)
+                in
+
+                Let((x.Alpha.Expr.typ, Some name), (convert tagmap x),
+                    {   info = info;
+                        typ = typ;
+                        body = Case((x.Alpha.Expr.typ, name),
+                                List.map compile_match bindings) })
+            | Alpha.Expr.Tuple(xs) ->
+                let xs = List.map (convert tagmap) xs in
+                AllocTuple((Common.Tag.of_int 0), xs)
+            | Alpha.Expr.BinOp(x, op, y) ->
+                let x = convert tagmap x in
+                let y = convert tagmap y in
+                BinOp(x, op, y)
+            | Alpha.Expr.UnOp(op, x) ->
+                let x = convert tagmap x in
+                UnOp(op, x)
+            | Alpha.Expr.Apply(x, y) ->
+                let x = convert tagmap x in
+                let y = convert tagmap y in
+                Apply(x, y)
+            | Alpha.Expr.Var(v) -> Var(v)
+            | Alpha.Expr.Const(c) -> Const(c)
+    in
+    {
+        info = info;
+        typ = typ;
+        body = body;
+    }
+    ;;
 
 end;;
 
-type t =
-    | Top of Info.t * Common.VarType.t * Common.Var.t option * Expr.t
-    | TopRec of Info.t * (Expr.lambda list)
-    | Extern of Info.t * Common.Var.t * Common.Var.t Common.External.t
-    with sexp
-;;
+type s =
+    | Top of Common.VarType.t * Common.Var.t option * Expr.t
+    | TopRec of (Lambda.t list)
+    | Extern of Common.Var.t * Common.Var.t Common.External.t
+and t = {
+    info: Info.t;
+    body: s;
+} with sexp;;
 
-let convert tagmap = function
-    | Alpha.Top(info, ty, v, x) ->
-        let x = Expr.convert tagmap x in
-        tagmap, [ Top(info, ty, v, x) ]
-    | Alpha.TopRec(info, fns) ->
-        let fns = List.map
-                    (fun (i, ty, n, args, x) ->
-                        (i, ty, n, args, Expr.convert tagmap x))
-                    fns
-        in
-        tagmap, [ TopRec(info, fns) ]
-    | Alpha.Extern(info, name, xt) ->
-        tagmap, [ Extern(info, name, xt) ]
-    | Alpha.VariantDef(info, name, opts) ->
-        let tagmap =
-            Utils.fold_lefti
-                (fun i tagmap (_, n, _) ->
-                    Common.Var.Map.add n (Common.Tag.of_int i) tagmap)
-                tagmap
-                opts
-        in
-        let rtype = Type.Named(name) in
-        let fns =
-            List.map
-                (fun (info, n, tys) ->
-                    let names =
-                        List.map (fun _ -> Common.Var.generate ()) tys
-                    in
-                    let fn_type = Type.fn_type tys rtype in
-                    let args = List.map2 (fun ty n -> ty, Some n) tys names in
-                    let tag = Common.Var.Map.find n tagmap in
-                    let body =
-                        Expr.AllocTuple(info, rtype, tag,
-                                            List.map2
-                                                (fun ty n ->
-                                                    Expr.Var(info, ty, n))
-                                                tys
-                                                names)
-                    in
-                    Top(info, fn_type, Some n,
-                            (Expr.Lambda(info, fn_type, args, body))))
-                opts
-        in
-        tagmap, fns
+let convert tagmap x =
+    let inner_convert info = function
+        | Alpha.Top(ty, v, x) ->
+            let x = Expr.convert tagmap x in
+            tagmap, [ Top(ty, v, x) ]
+        | Alpha.TopRec(fns) ->
+            let fns = List.map (Lambda.convert tagmap) fns in
+            tagmap, [ TopRec(fns) ]
+        | Alpha.Extern(name, xt) ->
+            tagmap, [ Extern(name, xt) ]
+        | Alpha.VariantDef(name, opts) ->
+            let tagmap =
+                Utils.fold_lefti
+                    (fun i tagmap (_, n, _) ->
+                        Common.Var.Map.add n (Common.Tag.of_int i) tagmap)
+                    tagmap
+                    opts
+            in
+            let rtype = Type.Named(name) in
+            let fns =
+                List.map
+                    (fun (info, n, tys) ->
+                        let names =
+                            List.map (fun _ -> Common.Var.generate ()) tys
+                        in
+                        let fn_type = Type.fn_type tys rtype in
+                        let args = List.map2 (fun ty n -> ty, Some n)
+                                                tys names
+                        in
+                        let tag = Common.Var.Map.find n tagmap in
+                        let body =
+                            {   Expr.info = info;
+                                Expr.typ = rtype;
+                                Expr.body =
+                                    Expr.AllocTuple(tag,
+                                        List.map2
+                                            (fun ty n -> {
+                                                Expr.info = info;
+                                                Expr.typ = ty;
+                                                Expr.body = Expr.Var(n) })
+                                            tys
+                                            names) }
+                        in
+                        Top(fn_type, Some n,
+                                {   Expr.info = info;
+                                    Expr.typ = fn_type;
+                                    Expr.body =
+                                        Expr.Lambda(args, body) }))
+                    opts
+            in
+            tagmap, fns
+    in
+    let tagmap, bodies = inner_convert x.Alpha.info x.Alpha.body in
+    tagmap, List.map (fun b -> { info = x.Alpha.info; body = b }) bodies
     ;;
 
 module C : IL.Conversion with type input = Alpha.t and type output = t =
@@ -214,4 +281,4 @@ end;;
 
 module Convert: IL.Converter with type output = t
     = IL.Make(Alpha.Convert)(C);;
-    
+

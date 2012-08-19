@@ -33,6 +33,8 @@ let parse_error s =
     ()
 ;;
 
+let expr body = AST.Expr.make (info ()) body;;
+
 %}
 
 %token <string> VAR
@@ -100,19 +102,21 @@ let parse_error s =
 
 top_level:
       LET var_or_discard EQUALS expr DOUBLE_SEMI {
-            AST.Form(AST.Top(info (), $2, $4))
+            AST.Form(AST.make (info ()) (AST.Top($2, $4)))
         }
     | LET VAR arglist EQUALS expr DOUBLE_SEMI {
             let i = info () in
-            AST.Form(AST.Top(i, Some($2), AST.Expr.Lambda(i, List.rev $3, $5)))
+            AST.Form(
+                AST.make i
+                    (AST.Top(Some($2),
+                                (AST.Expr.make i
+                                    (AST.Expr.Lambda(List.rev $3, $5))))))
         }
     | LET REC rec_list DOUBLE_SEMI {
-            let i = info () in
-            AST.Form(AST.TopRec(i, List.rev $3))
+            AST.Form(AST.make  (info ()) (AST.TopRec(List.rev $3)))
         }
     | TYPE VAR EQUALS var_def DOUBLE_SEMI {
-            let i = info () in
-            AST.Form(AST.VariantDef(i, $2, List.rev $4))
+            AST.Form(AST.make (info ()) (AST.VariantDef($2, List.rev $4)))
         }
     | error DOUBLE_SEMI {
             Printf.printf("Syntax Error.\n");
@@ -129,7 +133,7 @@ rec_list:
 
 rec_defn:
       VAR arglist COLON type_expr EQUALS expr {
-            info (), $1, List.rev $2, $4, $6
+            AST.Lambda.make (info ()) $1 (List.rev $2) $4 $6
         }
 ;
 
@@ -176,22 +180,22 @@ base_type_expr:
 
 expr:
       LET var_or_discard EQUALS expr IN expr {
-            AST.Expr.Let(info (), $2, $4, $6)
+            expr (AST.Expr.Let($2, $4, $6))
         }
     | LET tuple_pattern EQUALS expr IN expr {
-            AST.Expr.LetTuple(info (), List.rev $2, $4, $6)
+            expr (AST.Expr.LetTuple(List.rev $2, $4, $6))
         }
     | LET REC rec_list IN expr {
-            AST.Expr.LetRec(info (), List.rev $3, $5)
+            expr (AST.Expr.LetRec(List.rev $3, $5))
         }
     | LAMBDA arglist DOT expr {
-            AST.Expr.Lambda(info (), List.rev $2, $4)
+            expr (AST.Expr.Lambda(List.rev $2, $4))
         }
     | IF expr THEN expr ELSE expr {
-            AST.Expr.If(info (), $2, $4, $6)
+            expr (AST.Expr.If($2, $4, $6))
         }
     | MATCH expr WITH match_list END {
-            AST.Expr.Match(info (), $2, List.rev $4)
+            expr (AST.Expr.Match($2, List.rev $4))
         }
     | tuple_expr { $1 }
 ;
@@ -207,9 +211,9 @@ match_clause:
 ;
 
 pattern:
-      VAR { AST.Pattern.Pattern(info(), $1, []) }
+      VAR { AST.Pattern.make (info ()) $1 [] }
     | VAR OPEN_PAREN binding_list CLOSE_PAREN  {
-            AST.Pattern.Pattern(info (), $1, List.rev $3)
+            AST.Pattern.make (info ()) $1 (List.rev $3)
         }
 ;
 
@@ -225,7 +229,7 @@ tuple_pattern:
 
 tuple_expr:
       tuple_list_expr {
-            AST.Expr.Tuple(info (), List.rev $1)
+            expr (AST.Expr.Tuple(List.rev $1))
         }
     | bool_expr { $1 }
 ;
@@ -237,28 +241,28 @@ tuple_list_expr:
 
 bool_expr:
       bool_expr BOOL_OR and_expr {
-            AST.Expr.BinOp(info (), $1, Common.BinOp.Or, $3)
+            expr (AST.Expr.BinOp($1, Common.BinOp.Or, $3))
         }
     | and_expr { $1 }
 ;
 
 and_expr:
       and_expr BOOL_AND not_expr {
-            AST.Expr.BinOp(info (), $1, Common.BinOp.And, $3)
+            expr (AST.Expr.BinOp($1, Common.BinOp.And, $3))
         }
     | not_expr { $1 }
 ;
 
 not_expr:
       BOOL_NOT not_expr {
-            AST.Expr.UnOp(info (), Common.UnOp.Not, $2)
+            expr (AST.Expr.UnOp(Common.UnOp.Not, $2))
         }
     | comp_expr { $1 }
 ;
 
 comp_expr:
       times_expr comp_op add_expr {
-            AST.Expr.BinOp(info (), $1, $2, $3)
+            expr (AST.Expr.BinOp($1, $2, $3))
         }
     | add_expr { $1 }
 ;
@@ -280,59 +284,59 @@ comp_op:
 
 add_expr:
       add_expr PLUS times_expr {
-            AST.Expr.BinOp(info (), $1, Common.BinOp.Add, $3)
+            expr (AST.Expr.BinOp($1, Common.BinOp.Add, $3))
         }
     | add_expr MINUS times_expr {
-            AST.Expr.BinOp(info (), $1, Common.BinOp.Subtract, $3)
+            expr (AST.Expr.BinOp($1, Common.BinOp.Subtract, $3))
         }
     | add_expr FPLUS times_expr {
-            AST.Expr.BinOp(info (), $1, Common.BinOp.FAdd, $3)
+            expr (AST.Expr.BinOp($1, Common.BinOp.FAdd, $3))
         }
     | add_expr FMINUS times_expr {
-            AST.Expr.BinOp(info (), $1, Common.BinOp.FSubtract, $3)
+            expr (AST.Expr.BinOp($1, Common.BinOp.FSubtract, $3))
         }
     | times_expr { $1 }
 ;
 
 times_expr:
       times_expr TIMES neg_expr {
-            AST.Expr.BinOp(info (), $1, Common.BinOp.Times, $3)
+            expr (AST.Expr.BinOp($1, Common.BinOp.Times, $3))
         }
     | times_expr DIVIDE neg_expr {
-            AST.Expr.BinOp(info (), $1, Common.BinOp.Divide, $3)
+            expr (AST.Expr.BinOp($1, Common.BinOp.Divide, $3))
         }
     | times_expr FTIMES neg_expr {
-            AST.Expr.BinOp(info (), $1, Common.BinOp.FTimes, $3)
+            expr (AST.Expr.BinOp($1, Common.BinOp.FTimes, $3))
         }
     | times_expr FDIVIDE neg_expr {
-            AST.Expr.BinOp(info (), $1, Common.BinOp.FDivide, $3)
+            expr (AST.Expr.BinOp($1, Common.BinOp.FDivide, $3))
         }
     | neg_expr { $1 }
 ;
 
 neg_expr:
       NEGATE neg_expr {
-            AST.Expr.UnOp(info (), Common.UnOp.Neg, $2)
+            expr (AST.Expr.UnOp(Common.UnOp.Neg, $2))
         }
     | FNEGATE neg_expr {
-            AST.Expr.UnOp(info (), Common.UnOp.FNeg, $2)
+            expr (AST.Expr.UnOp(Common.UnOp.FNeg, $2))
         }
     | apply_expr { $1 }
 ;
 
 apply_expr:
       apply_expr base_expr {
-            AST.Expr.Apply(info (), $1, $2)
+            expr (AST.Expr.Apply($1, $2))
         }
     | base_expr { $1 }
 ;
 
 base_expr:
-      VAR { AST.Expr.Var(info (), $1) }
-    | BOOLEAN_VAL { AST.Expr.Const(info(), Common.Const.Boolean $1) }
-    | INT_VAL { AST.Expr.Const(info(), Common.Const.Int $1) }
-    | FLOAT_VAL { AST.Expr.Const(info (), Common.Const.Float $1) }
-    | OPEN_PAREN CLOSE_PAREN { AST.Expr.Const(info(), Common.Const.Unit) }
+      VAR { expr (AST.Expr.Var($1)) }
+    | BOOLEAN_VAL { expr (AST.Expr.Const(Common.Const.Boolean $1)) }
+    | INT_VAL { expr (AST.Expr.Const(Common.Const.Int $1)) }
+    | FLOAT_VAL { expr (AST.Expr.Const(Common.Const.Float $1)) }
+    | OPEN_PAREN CLOSE_PAREN { expr (AST.Expr.Const(Common.Const.Unit)) }
     | OPEN_PAREN expr CLOSE_PAREN { $2 }
 ;
 

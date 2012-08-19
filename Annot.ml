@@ -155,78 +155,74 @@ let rec convert_type info type_env = function
     | Type.Base(b) -> Type.Base(b)
 ;;
 
-module Pattern = struct
+module rec Pattern : sig
 
-    type t = Pattern of Info.t * string
-                            * ((type_t * string option) list)
-                with sexp;;
+    type s = Pattern of string * ((type_t * string option) list)
+    and t = {
+        info: Info.t;
+        match_type : type_t;
+        body: s
+    } with sexp;;
 
-end;;
+end = struct
 
-module Expr = struct
+    type s = Pattern of string * ((type_t * string option) list)
+    and t = {
+        info: Info.t;
+        match_type : type_t;
+        body: s
+    } with sexp;;
 
-    type arg = (type_t * (string option)) with sexp;;
+end and Arg : sig
 
-    type lambda = Info.t * type_t * string * (arg list) * t
-    and t =
-        | Lambda of Info.t * type_t * arg list * t
-        | Let of Info.t * type_t * arg * t * t
-        | LetTuple of Info.t * type_t * arg list * t * t
-        | LetRec of Info.t * type_t * (lambda list) * t
-        | If of Info.t * type_t * t * t * t
-        | Match of Info.t * type_t * t * ((Pattern.t * t) list)
-        | Tuple of Info.t * type_t * t list
-        | BinOp of Info.t * type_t * t * Common.BinOp.t * t
-        | UnOp of Info.t * type_t * Common.UnOp.t * t
-        | Apply of Info.t * type_t * t * t
-        | Var of Info.t * type_t * string
-        | Const of Info.t * type_t * Common.Const.t
-        with sexp
-    ;;
+    type t = (type_t * (string option)) with sexp;;
 
-    let get_type = function
-        | Lambda(_, ty, _, _)
-        | Let(_, ty, _, _, _)
-        | LetTuple(_, ty, _, _, _)
-        | LetRec(_, ty, _, _)
-        | If(_, ty, _, _, _)
-        | Match(_, ty, _, _)
-        | Tuple(_, ty, _)
-        | BinOp(_, ty, _, _, _)
-        | UnOp(_, ty, _, _)
-        | Apply(_, ty, _, _)
-        | Var(_, ty, _)
-        | Const(_, ty, _)
-            -> ty
-    ;;
+end = struct
 
-    let get_info = function
-        | Lambda(info, _, _, _)
-        | Let(info, _, _, _, _)
-        | LetTuple(info, _, _, _, _)
-        | LetRec(info, _, _, _)
-        | If(info, _, _, _, _)
-        | Match(info, _, _, _)
-        | Tuple(info, _, _)
-        | BinOp(info, _, _, _, _)
-        | UnOp(info, _, _, _)
-        | Apply(info, _, _, _)
-        | Var(info, _, _)
-        | Const(info, _, _)
-            -> info
-    ;;
+    type t = (type_t * (string option)) with sexp;;
 
-    let add_lambda_type type_env (info, name, args, rtype, _) =
+end and Lambda : sig
+
+    type t = {
+        info: Info.t;
+        typ: type_t;
+        name: string;
+        args: Arg.t list;
+        body: Expr.t
+    } with sexp;;
+
+    val add_lambda_type : type_env_t -> AST.Lambda.t -> type_env_t;;
+    val convert : type_env_t -> AST.Lambda.t -> t;;
+
+end = struct
+
+    type t = {
+        info: Info.t;
+        typ: type_t;
+        name: string;
+        args: Arg.t list;
+        body: Expr.t
+    } with sexp;;
+
+    let add_lambda_type type_env lambda =
         let ty = Type.fn_type
                     (List.map
-                        (fun x -> convert_type info type_env (fst x))
-                        args)
-                    (convert_type info type_env rtype)
+                        (fun x -> convert_type lambda.AST.Lambda.info
+                                                    type_env (fst x))
+                        lambda.AST.Lambda.args)
+                    (convert_type lambda.AST.Lambda.info type_env
+                                            lambda.AST.Lambda.rtype)
         in
-        { type_env with type_map = StringMap.add name ty type_env.type_map }
+        { type_env with type_map =
+            StringMap.add lambda.AST.Lambda.name ty type_env.type_map }
     ;;
 
-    let rec convert_lambda type_env (info, name, args, rtype, x) =
+    let convert type_env lambda =
+        let info = lambda.AST.Lambda.info in
+        let name = lambda.AST.Lambda.name in
+        let args = lambda.AST.Lambda.args in
+        let rtype = lambda.AST.Lambda.rtype in
+        let x = lambda.AST.Lambda.body in
         let args = List.map
                         (fun (t, x) -> (convert_type info type_env t), x)
                         args
@@ -234,7 +230,7 @@ module Expr = struct
         let rtype = convert_type info type_env rtype in
         let type_env =
             {   type_env with
-                type_map = 
+                type_map =
                     List.fold_left
                         (fun m (t, a) ->
                             match a with
@@ -243,158 +239,230 @@ module Expr = struct
                         type_env.type_map
                         args }
         in
-        let x = convert type_env x in
-        let _ = unify info (get_type x) rtype in
+        let x = Expr.convert type_env x in
+        let _ = unify info x.Expr.typ rtype in
         let fty = Type.fn_type (List.map fst args) rtype in
-        (info, fty, name, args, x)
+        {   info = info;
+            typ = fty;
+            name = name;
+            args = args;
+            body = x }
+    ;;
 
-    and convert type_env = function
 
-        | AST.Expr.Lambda(info, args, x) ->
-            let args = List.map
-                            (fun (t, x) -> (convert_type info type_env t), x)
-                            args
-            in
-            let type_env =
-                { type_env with
-                    type_map =
-                        List.fold_left
-                            (fun m (t, a) ->
-                                match a with
-                                | Some v -> StringMap.add v t m
-                                | None -> m)
-                            type_env.type_map
-                            args }
-            in
-            let x = convert type_env x in
-            let ty = Type.fn_type (List.map fst args) (get_type x) in
-            Lambda(info, ty, args, x)
+end and Expr : sig
 
-        | AST.Expr.Let(info, None, x, y) ->
-            let x = convert type_env x in
-            let y = convert type_env y in
-            let ty = get_type y in
-            let v = (get_type x, None) in
-            Let(info, ty, v, x, y)
+    type s =
+        | Lambda of Arg.t list * t
+        | Let of Arg.t * t * t
+        | LetTuple of Arg.t list * t * t
+        | LetRec of (Lambda.t list) * t
+        | If of t * t * t
+        | Match of t * ((Pattern.t * t) list)
+        | Tuple of t list
+        | BinOp of t * Common.BinOp.t * t
+        | UnOp of Common.UnOp.t * t
+        | Apply of t * t
+        | Var of string
+        | Const of Common.Const.t
+    and t = {
+        info : Info.t;
+        typ: type_t;
+        body: s;
+    } with sexp;;
 
-        | AST.Expr.Let(info, Some(v), x, y) ->
-            let x = convert type_env x in
-            let x_ty = get_type x in
-            let type_env =
-                { type_env with
-                    type_map = StringMap.add v x_ty type_env.type_map }
-            in
-            let y = convert type_env y in
-            let ty = get_type y in
-            let v = (x_ty, Some(v)) in
-            Let(info, ty, v, x, y)
+    val convert : type_env_t -> AST.Expr.t -> t;;
 
-        | AST.Expr.LetTuple(info, args, x, y) ->
-            begin
-                let x = convert type_env x in
-                let ty = get_type x in
-                match ty with
-                | Type.Tuple(ts) ->
-                    if (List.length ts) != (List.length args) then
-                        tuple_arity_error (get_info x) (List.length ts)
-                            (List.length args)
-                    else
-                        let args = List.map2 (fun a b -> a,b) ts args in
-                        let type_env =
-                            { type_env with
-                                type_map =
-                                    List.fold_left
-                                        (fun env (t, arg) ->
-                                            match arg with
-                                            | Some v -> StringMap.add v t env
-                                            | None -> env)
-                                        type_env.type_map
-                                        args }
-                        in
-                        let y = convert type_env y in
-                        LetTuple(info, get_type y, args, x, y)
-                | _ ->
-                    not_tuple_type_error (get_info x) ty
-            end
+end = struct
 
-        | AST.Expr.LetRec(info, fns, x) ->
-            let type_env = List.fold_left add_lambda_type type_env fns in
-            let fns = List.map (convert_lambda type_env) fns in
-            let x = convert type_env x in
-            LetRec(info, (get_type x), fns, x)
+    type s =
+        | Lambda of Arg.t list * t
+        | Let of Arg.t * t * t
+        | LetTuple of Arg.t list * t * t
+        | LetRec of (Lambda.t list) * t
+        | If of t * t * t
+        | Match of t * ((Pattern.t * t) list)
+        | Tuple of t list
+        | BinOp of t * Common.BinOp.t * t
+        | UnOp of Common.UnOp.t * t
+        | Apply of t * t
+        | Var of string
+        | Const of Common.Const.t
+    and t = {
+        info : Info.t;
+        typ: type_t;
+        body: s;
+    } with sexp;;
 
-        | AST.Expr.If(info, x, y, z) ->
-            let x = convert type_env x in
-            let y = convert type_env y in
-            let z = convert type_env z in
-            let _ = unify info (get_type x) (Type.Base(Type.Boolean)) in
-            let y_ty = get_type y in
-            let _ = unify info y_ty (get_type z) in
-            If(info, y_ty, x, y, z)
-
-        | AST.Expr.Match(info, x, bindings) ->
-            let (type_env, x, bindings) =
-                convert_match type_env info x bindings
-            in
-            let ty = 
+    let add_args type_env args =
+        { type_env with
+            type_map =
                 List.fold_left
-                    (fun ty (_, x) ->
-                        let _ = unify info ty (get_type x) in
-                        ty)
-                    (get_type (snd (List.hd bindings)))
-                    (List.tl bindings)
-            in
-            Match(info, ty, x, bindings)
+                    (fun m (t, a) ->
+                        match a with
+                        | Some v -> StringMap.add v t m
+                        | None -> m)
+                    type_env.type_map
+                    args }
+    ;;
 
-        | AST.Expr.Tuple(info, xs) ->
-            let xs = List.map (convert type_env) xs in
-            let ts = List.map get_type xs in
-            let ty = Type.Tuple(ts) in
-            Tuple(info, ty, xs)
+    let add_bindings type_env v ty =
+        { type_env with
+            type_map = StringMap.add v ty type_env.type_map }
+    ;;
 
-        | AST.Expr.BinOp(info, x, op, y) ->
-            let (x_ty, y_ty, z_ty) = Common.BinOp.get_types op in
-            let x = convert type_env x in
-            let y = convert type_env y in
-            let _ = unify (get_info x) (get_type x) x_ty in
-            let _ = unify (get_info y) (get_type y) y_ty in
-            BinOp(info, z_ty, x, op, y)
-
-        | AST.Expr.UnOp(info, op, x) ->
-            let (x_ty, y_ty) = Common.UnOp.get_types op in
-            let x = convert type_env x in
-            let _ = unify (get_info x) (get_type x) x_ty in
-            UnOp(info, y_ty, op, x)
-
-        | AST.Expr.Apply(info, f, x) ->
+    let calc_type type_env = function
+        | Lambda(args, x) ->
+            Type.fn_type (List.map fst args) x.typ
+        | Let(_, _, y)
+        | LetTuple(_, _, y)
+        | LetRec(_, y)
+        | If(_, y, _)
+                -> y.typ
+        | Match(_, bindings) -> (snd (List.hd bindings)).typ
+        | Tuple(xs) ->
+            let ts = List.map (fun x -> x.typ) xs in
+            Type.Tuple(ts)
+        | BinOp(_, op, _) ->
+            let (_, _, ty) = Common.BinOp.get_types op in
+            ty
+        | UnOp(op, _) ->
+            let (_, ty) = Common.UnOp.get_types op in
+            ty
+        | Apply(f, _) ->
             begin
-                let f = convert type_env f in
+                match f.typ with
+                | Type.Arrow(_, ty) -> ty
+                | _ -> assert false
+            end
+        | Var(v) -> StringMap.find v type_env.type_map
+        | Const(c) -> Common.Const.get_type c
+    ;;
+
+    let rec convert type_env t =
+        let info = t.AST.Expr.info in
+        let body = match t.AST.Expr.body with
+            | AST.Expr.Lambda(args, x) ->
+                let args = List.map
+                                (fun (t, x) ->
+                                    (convert_type info type_env t), x)
+                                args
+                in
+                let type_env = add_args type_env args in
                 let x = convert type_env x in
-                let f_ty = get_type f in
-                let x_ty = get_type x in
-                match f_ty with
-                | Type.Arrow(y_ty, z_ty) ->
-                    let _ = unify info x_ty y_ty in
-                    Apply(info, z_ty, f, x)
-                | _ ->
-                    not_a_function info f_ty
-            end
+                Lambda(args, x)
 
-        | AST.Expr.Var(info, v) ->
-            begin
-                try
-                    let ty = StringMap.find v type_env.type_map in
-                    Var(info, ty, v)
-                with
-                | Not_found -> unknown_var info v
-            end
+            | AST.Expr.Let(None, x, y) ->
+                let x = convert type_env x in
+                let y = convert type_env y in
+                let v = (x.typ, None) in
+                Let(v, x, y)
 
-        | AST.Expr.Const(info, c)
-            -> Const(info, Common.Const.get_type c, c)
+            | AST.Expr.Let(Some(v), x, y) ->
+                let x = convert type_env x in
+                let x_ty = x.typ in
+                let type_env = add_bindings type_env v x_ty in
+                let y = convert type_env y in
+                let v = (x_ty, Some(v)) in
+                Let(v, x, y)
 
-    and convert_match type_env info x bindings = 
+            | AST.Expr.LetTuple(args, x, y) ->
+                begin
+                    let x = convert type_env x in
+                    match x.typ with
+                    | Type.Tuple(ts) ->
+                        if (List.length ts) != (List.length args) then
+                            tuple_arity_error x.info (List.length ts)
+                                (List.length args)
+                        else
+                            let args = List.map2 (fun a b -> a,b) ts args in
+                            let type_env = add_args type_env args in
+                            let y = convert type_env y in
+                            LetTuple(args, x, y)
+                    | _ ->
+                        not_tuple_type_error x.info x.typ
+                end
+
+            | AST.Expr.LetRec(fns, x) ->
+                let type_env = List.fold_left Lambda.add_lambda_type
+                                                        type_env fns
+                in
+                let fns = List.map (Lambda.convert type_env) fns in
+                let x = convert type_env x in
+                LetRec(fns, x)
+
+            | AST.Expr.If(x, y, z) ->
+                let x = convert type_env x in
+                let y = convert type_env y in
+                let z = convert type_env z in
+                let _ = unify info x.typ (Type.Base(Type.Boolean)) in
+                let _ = unify info y.typ z.typ in
+                If(x, y, z)
+
+            | AST.Expr.Match(x, bindings) ->
+                let (type_env, x, bindings) =
+                    convert_match type_env info x bindings
+                in
+                let _ =
+                    List.fold_left
+                        (fun ty (_, x) ->
+                            let _ = unify info ty x.typ in
+                            ty)
+                        (snd (List.hd bindings)).typ
+                        (List.tl bindings)
+                in
+                Match(x, bindings)
+
+            | AST.Expr.Tuple(xs) ->
+                let xs = List.map (convert type_env) xs in
+                Tuple(xs)
+
+            | AST.Expr.BinOp(x, op, y) ->
+                let (x_ty, y_ty, _) = Common.BinOp.get_types op in
+                let x = convert type_env x in
+                let y = convert type_env y in
+                let _ = unify x.info x.typ x_ty in
+                let _ = unify y.info y.typ y_ty in
+                BinOp(x, op, y)
+
+            | AST.Expr.UnOp(op, x) ->
+                let (x_ty, _) = Common.UnOp.get_types op in
+                let x = convert type_env x in
+                let _ = unify x.info x.typ x_ty in
+                UnOp(op, x)
+
+            | AST.Expr.Apply(f, x) ->
+                begin
+                    let f = convert type_env f in
+                    let x = convert type_env x in
+                    match f.typ with
+                    | Type.Arrow(y_ty, _) ->
+                        let _ = unify info x.typ y_ty in
+                        Apply(f, x)
+                    | _ ->
+                        not_a_function info f.typ
+                end
+
+            | AST.Expr.Var(v) ->
+                begin
+                    try
+                        let _ = StringMap.find v type_env.type_map in
+                        Var(v)
+                    with
+                    | Not_found -> unknown_var info v
+                end
+
+            | AST.Expr.Const(c) -> Const(c)
+
+        in
+        let typ = calc_type type_env body in
+        {   info = info;
+            typ = typ;
+            body = body; }
+
+    and convert_match type_env info x bindings =
         let x = convert type_env x in
-        let x_typ = get_type x in
+        let x_typ = x.typ in
         let type_defn =
             match x_typ with
             | Type.Named(n) ->
@@ -403,120 +471,137 @@ module Expr = struct
                         StringMap.find (CheckedString.to_string n)
                                         type_env.type_defn
                     with
-                    | Not_found -> unknown_var (get_info x)
+                    | Not_found -> unknown_var x.info
                                             (CheckedString.to_string n)
                 end
-            | _ -> not_a_variant (get_info x) x_typ
+            | _ -> not_a_variant x.info x_typ
         in
         let bindings =
             List.map
                 (fun (pat, y) ->
-                    let (type_env, pat) = convert_pat type_env type_defn pat in
+                    let (type_env, pat) =
+                        convert_pat x.typ type_env type_defn pat
+                    in
                     let y = convert type_env y in
                     (pat, y))
                 bindings
         in
         type_env, x, bindings
-    and convert_pat type_env type_def (AST.Pattern.Pattern(info, n, xs)) =
-        let tys =
-            try
-                StringMap.find n type_def
-            with
-            | Not_found -> unknown_var info n
-        in
-        if (List.length xs) != (List.length tys) then
-            invalid_number_of_bindings info n
-                (List.length tys) (List.length xs)
-        else
-            let type_map =
-                List.fold_left2
-                    (fun s x t ->
-                        match x with
-                        | Some x -> StringMap.add x t s
-                        | None -> s)
-                    type_env.type_map
-                    xs
-                    tys
+    and convert_pat match_type type_env type_def pat =
+        match pat.AST.Pattern.body with
+        | AST.Pattern.Pattern(n, xs) ->
+            let tys =
+                try
+                    StringMap.find n type_def
+                with
+                | Not_found -> unknown_var pat.AST.Pattern.info n
             in
-            let xs = List.map2 (fun x t -> t, x) xs tys in
-            { type_env with type_map = type_map },
-            (Pattern.Pattern(info, n, xs))
+            if (List.length xs) != (List.length tys) then
+                invalid_number_of_bindings pat.AST.Pattern.info n
+                    (List.length tys) (List.length xs)
+            else
+                let type_map =
+                    List.fold_left2
+                        (fun s x t ->
+                            match x with
+                            | Some x -> StringMap.add x t s
+                            | None -> s)
+                        type_env.type_map
+                        xs
+                        tys
+                in
+                let xs = List.map2 (fun x t -> t, x) xs tys in
+                { type_env with type_map = type_map },
+                {   Pattern.info = pat.AST.Pattern.info;
+                    Pattern.match_type = match_type;
+                    Pattern.body = Pattern.Pattern(n, xs) }
     ;;
 
 end;;
 
-type t =
-    | Top of Info.t * type_t * (string option) * Expr.t
-    | TopRec of Info.t * (Expr.lambda list)
-    | Extern of Info.t * string * CheckedString.t Common.External.t
-    | VariantDef of Info.t * string
-                        * ((Info.t * string * (type_t list)) list)
-    with sexp;;
+type s =
+    | Top of type_t * string option * Expr.t
+    | TopRec of (Lambda.t list)
+    | Extern of string * CheckedString.t Common.External.t
+    | VariantDef of string * ((Info.t * string * (type_t list)) list)
+and t = {
+    info: Info.t;
+    body: s;
+} with sexp;;
 
-let convert type_env = function
-    | AST.Top(info, v, x) ->
-        let x = Expr.convert type_env x in
-        let ty = Expr.get_type x in
-        let type_env =
-            match v with
-            | Some n -> { type_env with
-                            type_map = StringMap.add n ty type_env.type_map }
-            | None -> type_env
-        in
-        type_env, Top(info, ty, v, x)
-    | AST.TopRec(info, fns) ->
-        let type_env = List.fold_left Expr.add_lambda_type type_env fns in
-        let fns = List.map (Expr.convert_lambda type_env) fns in
-        type_env, TopRec(info, fns)
-                    
-    | AST.Extern(info, v, extern) ->
-        let extern = { extern with
-                            Common.External.return_type =
-                                convert_type info type_env
-                                    extern.Common.External.return_type;
-                            Common.External.arg_types =
-                                List.map
-                                    (convert_type info type_env)
-                                    extern.Common.External.arg_types }
-        in
-        let type_env =
-            { type_env with
-                type_map = StringMap.add v
-                                (Type.fn_type
-                                    extern.Common.External.arg_types
-                                    extern.Common.External.return_type)
-                                type_env.type_map }
-        in
-        type_env, Extern(info, v, extern)
-    | AST.VariantDef(info, name, opts) ->
-        (* Add a dummy definition just long enough to check the types *)
-        let type_env' = { type_env with
-                            type_defn = StringMap.add name StringMap.empty
-                                            type_env.type_defn }
-        in
-        let opts = List.map
-                    (fun (i, n, ts) ->
-                        i, n, (List.map (convert_type i type_env') ts))
+let convert type_env x =
+    let info = x.AST.info in
+    let type_env, body = match x.AST.body with
+        | AST.Top(v, x) ->
+            let x = Expr.convert type_env x in
+            let ty = x.Expr.typ in
+            let type_env =
+                match v with
+                | Some n -> { type_env with
+                                type_map = StringMap.add n ty
+                                                            type_env.type_map }
+                | None -> type_env
+            in
+            type_env, Top(ty, v, x)
+
+        | AST.TopRec(fns) ->
+            let type_env =
+                List.fold_left Lambda.add_lambda_type type_env fns
+            in
+            let fns = List.map (Lambda.convert type_env) fns in
+            type_env, TopRec(fns)
+    
+        | AST.Extern(v, extern) ->
+            let extern = { extern with
+                                Common.External.return_type =
+                                    convert_type info type_env
+                                        extern.Common.External.return_type;
+                                Common.External.arg_types =
+                                    List.map
+                                        (convert_type info type_env)
+                                        extern.Common.External.arg_types }
+            in
+            let type_env =
+                { type_env with
+                    type_map = StringMap.add v
+                                    (Type.fn_type
+                                        extern.Common.External.arg_types
+                                        extern.Common.External.return_type)
+                                    type_env.type_map }
+            in
+            type_env, Extern(v, extern)
+        | AST.VariantDef(name, opts) ->
+            (* Add a dummy definition just long enough to check the types *)
+            let type_env' = { type_env with
+                                type_defn = StringMap.add name
+                                                StringMap.empty
+                                                type_env.type_defn }
+            in
+            let opts = List.map
+                        (fun (i, n, ts) ->
+                            i, n, (List.map (convert_type i type_env') ts))
+                        opts
+            in
+            let type_defn =
+                StringMap.add name
+                    (List.fold_left
+                        (fun s (_, n, tys) -> StringMap.add n tys s)
+                        StringMap.empty
+                        opts)
+                    type_env.type_defn
+            in
+            let rtype = Type.Named(CheckedString.of_string name) in
+            let type_map =
+                List.fold_left
+                    (fun type_map (_, n, tys) ->
+                        StringMap.add n (Type.fn_type tys rtype) type_map)
+                    type_env.type_map
                     opts
-        in
-        let type_defn =
-            StringMap.add name
-                (List.fold_left
-                    (fun s (_, n, tys) -> StringMap.add n tys s)
-                    StringMap.empty
-                    opts)
-                type_env.type_defn
-        in
-        let rtype = Type.Named(CheckedString.of_string name) in
-        let type_map =
-            List.fold_left
-                (fun type_map (_, n, tys) ->
-                    StringMap.add n (Type.fn_type tys rtype) type_map)
-                type_env.type_map
-                opts
-        in
-        { type_defn = type_defn; type_map = type_map },
-        VariantDef(info, name, opts)
+            in
+            { type_defn = type_defn; type_map = type_map },
+            VariantDef(name, opts)
+    in
+    type_env, { info = info; body = body }
 ;;
 
 module C : IL.Conversion with type input = AST.t and type output = t = struct

@@ -18,37 +18,39 @@
 
 module Expr : sig
 
-    type t =
-        | Let of Info.t * Common.VarType.t * Common.Arg.t * t * t
-        | If of Info.t * Common.VarType.t * t * t * t
-        | AllocTuple of Info.t * Common.VarType.t * Common.Tag.t * (t list)
-        | GetField of Info.t * Common.VarType.t * int * t
-        | Case of Info.t * Common.VarType.t
-                        * (Common.VarType.t * Common.Var.t)
-                        * ((Common.Tag.t * t) list)
-        | Label of Info.t * Common.VarType.t * t * Common.Var.t
-                                * Common.VarType.t Common.Var.Map.t * t
-        | Goto of Info.t * Common.Var.t * (t Common.Var.Map.t)
-        | BinOp of Info.t * Common.VarType.t * t * Common.BinOp.t * t
-        | UnOp of Info.t * Common.VarType.t * Common.UnOp.t * t
-        | Apply of Info.t * Common.VarType.t * t * t
-        | Var of Info.t * Common.VarType.t * Common.Var.t
-        | Const of Info.t * Common.VarType.t * Common.Const.t
-        | CallExtern of Info.t * Common.VarType.t
-                    * Common.Var.t Common.External.t
+    type s =
+        | Let of Common.Arg.t * t * t
+        | If of t * t * t
+        | AllocTuple of Common.Tag.t * (t list)
+        | GetField of int * t
+        | Case of (Common.VarType.t * Common.Var.t) * ((Common.Tag.t * t) list)
+        | Label of t * Common.Var.t * Common.VarType.t Common.Var.Map.t * t
+        | Goto of Common.Var.t * (t Common.Var.Map.t)
+        | BinOp of t * Common.BinOp.t * t
+        | UnOp of Common.UnOp.t * t
+        | Apply of t * t
+        | Var of Common.Var.t
+        | Const of Common.Const.t
+        | CallExtern of Common.Var.t Common.External.t
                     * ((Common.VarType.t * Common.Var.t) list)
-    ;;
+    and t = {
+        info : Info.t;
+        typ : Common.VarType.t;
+        body : s;
+    } with sexp;;
 
 end;;
 
-type t =
-    | TopFun of Info.t * Common.VarType.t * Common.Var.t
-                    * Common.Arg.t list * Expr.t
-    | TopVar of Info.t * Common.VarType.t * Common.Var.t * Expr.t
-    | TopForward of Info.t * Common.VarType.t * Common.Var.t * int
-    | TopExpr of Info.t * Common.VarType.t * Expr.t
-    with sexp
-;;
+type s =
+    | TopFun of Common.Var.t * Common.Arg.t list * Expr.t
+    | TopVar of Common.Var.t * Expr.t
+    | TopForward of Common.Var.t * int
+    | TopExpr of Expr.t
+and t = {
+    info : Info.t;
+    typ: Common.VarType.t;
+    body: s;
+} with sexp;;
 
 module Convert : IL.Converter with type output = t;;
 

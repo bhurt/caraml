@@ -34,131 +34,52 @@ let rec convert_type names = function
     | Type.Base(b) -> Type.Base(b)
 ;;
 
-module Expr = struct
+let rename_arg names = function
+    | (_, None) -> names
+    | (_, Some name) ->
+        let v = Common.Var.of_string name in
+        StringMap.add name v names
+;;
 
-    type lambda = Info.t * Common.VarType.t * Common.Var.t
-                                            * (Common.Arg.t list) * t
-    and t =
-        | Lambda of Info.t * Common.VarType.t * Common.Arg.t list * t
-        | Let of Info.t * Common.VarType.t * Common.Arg.t * t * t
-        | LetTuple of Info.t * Common.VarType.t * Common.Arg.t list * t * t
-        | LetRec of Info.t * Common.VarType.t * (lambda list) * t
-        | If of Info.t * Common.VarType.t * t * t * t
-        | Match of Info.t * Common.VarType.t * t *
-                    ((Info.t * Common.Var.t * (Common.Arg.t list) * t) list)
-        | Tuple of Info.t * Common.VarType.t * t list
-        | BinOp of Info.t * Common.VarType.t * t * Common.BinOp.t * t
-        | UnOp of Info.t * Common.VarType.t * Common.UnOp.t * t
-        | Apply of Info.t * Common.VarType.t * t * t
-        | Var of Info.t * Common.VarType.t * Common.Var.t
-        | Const of Info.t * Common.VarType.t * Common.Const.t
-        with sexp
-    ;;
+let map_arg names = function
+    | (ty, None) ->
+        let ty = convert_type names ty in
+        (ty, None)
+    | (ty, Some name) ->
+        let ty = convert_type names ty in
+        let v = StringMap.find name names in
+        (ty, Some v)
+;;
 
-    let rename_arg names = function
-        | (_, None) -> names
-        | (_, Some name) ->
-            let v = Common.Var.of_string name in
-            StringMap.add name v names
-    ;;
+module rec Lambda : sig
 
-    let map_arg names = function
-        | (ty, None) ->
-            let ty = convert_type names ty in
-            (ty, None)
-        | (ty, Some name) ->
-            let ty = convert_type names ty in
-            let v = StringMap.find name names in
-            (ty, Some v)
-    ;;
+    type t = {
+        info: Info.t;
+        typ: Common.VarType.t;
+        name: Common.Var.t;
+        args: (Common.Arg.t list);
+        body: Expr.t;
+    } with sexp;;
 
-    let rec convert names = function
+    val convert : Common.Var.t StringMap.t -> Annot.Lambda.t list
+                            -> (Common.Var.t StringMap.t) * (t list);;
 
-        | Annot.Expr.Lambda(info, ty, args, x) ->
-            let ty = convert_type names ty in
-            let names = List.fold_left rename_arg names args in
-            let args = List.map (map_arg names) args in
-            let x = convert names x in
-            Lambda(info, ty, args, x)
+end = struct
 
-        | Annot.Expr.Let(info, ty, arg, x, y) ->
-            let ty = convert_type names ty in
-            let x = convert names x in
-            let names = rename_arg names arg in
-            let arg = map_arg names arg in
-            let y = convert names y in
-            Let(info, ty, arg, x, y)
+    type t = {
+        info: Info.t;
+        typ: Common.VarType.t;
+        name: Common.Var.t;
+        args: (Common.Arg.t list);
+        body: Expr.t;
+    } with sexp;;
 
-        | Annot.Expr.LetTuple(info, ty, args, x, y) ->
-            let ty = convert_type names ty in
-            let x = convert names x in
-            let names = List.fold_left rename_arg names args in
-            let args = List.map (map_arg names) args in
-            let y = convert names y in
-            LetTuple(info, ty, args, x, y)
 
-        | Annot.Expr.LetRec(info, ty, fns, x) ->
-            let ty = convert_type names ty in
-            let names, fns = convert_lambdas names fns in
-            let x = convert names x in
-            LetRec(info, ty, fns, x)
-
-        | Annot.Expr.If(info, ty, x, y, z) ->
-            let ty = convert_type names ty in
-            let x = convert names x in
-            let y = convert names y in
-            let z = convert names z in
-            If(info, ty, x, y, z)
-
-        | Annot.Expr.Match(info, ty, x, bindings) ->
-            let ty = convert_type names ty in
-            let x = convert names x in
-            let bindings =
-                List.map
-                    (fun ((Annot.Pattern.Pattern(info, name, args)), y) ->
-                        let name = StringMap.find name names in
-                        let names = List.fold_left rename_arg names args in
-                        let args = List.map (map_arg names) args in
-                        let y = convert names y in
-                        (info, name, args, y))
-                    bindings
-            in
-            Match(info, ty, x, bindings)
-
-        | Annot.Expr.Tuple(info, ty, xs) ->
-            let ty = convert_type names ty in
-            let xs = List.map (convert names) xs in
-            Tuple(info, ty, xs)
-
-        | Annot.Expr.BinOp(info, ty, x, op, y) ->
-            let ty = convert_type names ty in
-            let x = convert names x in
-            let y = convert names y in
-            BinOp(info, ty, x, op, y)
-
-        | Annot.Expr.UnOp(info, ty, op, x) ->
-            let ty = convert_type names ty in
-            let x = convert names x in
-            UnOp(info, ty, op, x)
-
-        | Annot.Expr.Apply(info, ty, f, x) ->
-            let ty = convert_type names ty in
-            let f = convert names f in
-            let x = convert names x in
-            Apply(info, ty, f, x)
-
-        | Annot.Expr.Var(info, ty, v) ->
-            let ty = convert_type names ty in
-            Var(info, ty, StringMap.find v names)
-
-        | Annot.Expr.Const(info, ty, c) ->
-            let ty = convert_type names ty in
-            Const(info, ty, c)
-
-    and convert_lambdas names fns =
+    let convert names fns = 
         let names =
             List.fold_left
-                (fun names (_, _, n, _, _) ->
+                (fun names fn ->
+                    let n = fn.Annot.Lambda.name in
                     let v = Common.Var.of_string n in
                     StringMap.add n v names)
                 names
@@ -166,63 +87,233 @@ module Expr = struct
         in
         let fns =
             List.map
-                (fun (i, ty, n, args, x) ->
-                    let ty = convert_type names ty in
-                    let n = StringMap.find n names in
-                    let names = List.fold_left rename_arg names args in
-                    let args = List.map (map_arg names) args in
-                    let x = convert names x in
-                    (i, ty, n, args, x))
+                (fun fn ->
+                    let names' = List.fold_left rename_arg names
+                                        fn.Annot.Lambda.args
+                    in
+                    {
+                        info = fn.Annot.Lambda.info;
+                        typ = convert_type names fn.Annot.Lambda.typ;
+                        name = StringMap.find fn.Annot.Lambda.name names;
+                        args = List.map (map_arg names') fn.Annot.Lambda.args;
+                        body = Expr.convert names' fn.Annot.Lambda.body;
+                    })
                 fns
         in
         names, fns
     ;;
+
+end and Pattern : sig
+
+    type s = Pattern of Common.Var.t * (Common.Arg.t list)
+    and t = {
+        info: Info.t;
+        match_type: Common.VarType.t;
+        body: s;
+    } with sexp;;
+
+    val convert : Common.Var.t StringMap.t -> Annot.Pattern.t
+                    -> (Common.Var.t StringMap.t) * t
+    ;;
+
+end = struct
+
+    type s = Pattern of Common.Var.t * (Common.Arg.t list)
+    and t = {
+        info: Info.t;
+        match_type: Common.VarType.t;
+        body: s;
+    } with sexp;;
+
+    let convert names pat =
+        let names', body = match pat.Annot.Pattern.body with
+            | Annot.Pattern.Pattern(name, args) ->
+                let name = StringMap.find name names in
+                let names = List.fold_left rename_arg names args in
+                let args = List.map (map_arg names) args in
+                names, Pattern(name, args)
+        in
+        names',
+        {   info = pat.Annot.Pattern.info;
+            match_type = convert_type names pat.Annot.Pattern.match_type;
+            body = body }
+    ;;
+
+end and Expr : sig
+
+    type s =
+        | Lambda of Common.Arg.t list * t
+        | Let of Common.Arg.t * t * t
+        | LetTuple of Common.Arg.t list * t * t
+        | LetRec of (Lambda.t list) * t
+        | If of t * t * t
+        | Match of t * ((Pattern.t * t) list)
+        | Tuple of t list
+        | BinOp of t * Common.BinOp.t * t
+        | UnOp of Common.UnOp.t * t
+        | Apply of t * t
+        | Var of Common.Var.t
+        | Const of Common.Const.t
+    and t = {
+        info: Info.t;
+        typ: Common.VarType.t;
+        body: s;
+    } with sexp;;
+
+    val convert: Common.Var.t StringMap.t -> Annot.Expr.t -> t;;
+
+end = struct
+
+    type s =
+        | Lambda of Common.Arg.t list * t
+        | Let of Common.Arg.t * t * t
+        | LetTuple of Common.Arg.t list * t * t
+        | LetRec of (Lambda.t list) * t
+        | If of t * t * t
+        | Match of t * ((Pattern.t * t) list)
+        | Tuple of t list
+        | BinOp of t * Common.BinOp.t * t
+        | UnOp of Common.UnOp.t * t
+        | Apply of t * t
+        | Var of Common.Var.t
+        | Const of Common.Const.t
+    and t = {
+        info: Info.t;
+        typ: Common.VarType.t;
+        body: s;
+    } with sexp;;
+
+    let rec convert names x = 
+        let body = match x.Annot.Expr.body with
+
+            | Annot.Expr.Lambda(args, x) ->
+                let names = List.fold_left rename_arg names args in
+                let args = List.map (map_arg names) args in
+                let x = convert names x in
+                Lambda(args, x)
+    
+            | Annot.Expr.Let(arg, x, y) ->
+                let x = convert names x in
+                let names = rename_arg names arg in
+                let arg = map_arg names arg in
+                let y = convert names y in
+                Let(arg, x, y)
+    
+            | Annot.Expr.LetTuple(args, x, y) ->
+                let x = convert names x in
+                let names = List.fold_left rename_arg names args in
+                let args = List.map (map_arg names) args in
+                let y = convert names y in
+                LetTuple(args, x, y)
+    
+            | Annot.Expr.LetRec(fns, x) ->
+                let names, fns = Lambda.convert names fns in
+                let x = convert names x in
+                LetRec(fns, x)
+    
+            | Annot.Expr.If(x, y, z) ->
+                let x = convert names x in
+                let y = convert names y in
+                let z = convert names z in
+                If(x, y, z)
+    
+            | Annot.Expr.Match(x, bindings) ->
+                let x = convert names x in
+                let bindings =
+                    List.map
+                        (fun (pat, y) ->
+                            let names, pat = Pattern.convert names pat in
+                            let y = convert names y in
+                            (pat, y))
+                        bindings
+                in
+                Match(x, bindings)
+    
+            | Annot.Expr.Tuple(xs) ->
+                let xs = List.map (convert names) xs in
+                Tuple(xs)
+    
+            | Annot.Expr.BinOp(x, op, y) ->
+                let x = convert names x in
+                let y = convert names y in
+                BinOp(x, op, y)
+    
+            | Annot.Expr.UnOp(op, x) ->
+                let x = convert names x in
+                UnOp(op, x)
+    
+            | Annot.Expr.Apply(f, x) ->
+                let f = convert names f in
+                let x = convert names x in
+                Apply(f, x)
+    
+            | Annot.Expr.Var(v) ->
+                Var(StringMap.find v names)
+    
+            | Annot.Expr.Const(c) ->
+                Const(c)
+    in
+    {
+        info = x.Annot.Expr.info;
+        typ = convert_type names x.Annot.Expr.typ;
+        body = body;
+    } 
+    ;;
         
 end;;
 
-type t =
-    | Top of Info.t * Common.VarType.t * Common.Var.t option * Expr.t
-    | TopRec of Info.t * (Expr.lambda list)
-    | Extern of Info.t * Common.Var.t * Common.Var.t Common.External.t
-    | VariantDef of Info.t * Common.Var.t
+type s =
+    | Top of Common.VarType.t * Common.Var.t option * Expr.t
+    | TopRec of (Lambda.t list)
+    | Extern of Common.Var.t * Common.Var.t Common.External.t
+    | VariantDef of Common.Var.t
                 * ((Info.t * Common.Var.t * (Common.VarType.t list)) list)
-    with sexp
-;;
+and t = {
+    info: Info.t;
+    body: s;
+} with sexp;;
 
-let convert names = function
-    | Annot.Top(info, ty, None, x) ->
-        let ty = convert_type names ty in
-        let x = Expr.convert names x in
-        names, (Top(info, ty, None, x))
-    | Annot.Top(info, ty, Some v, x) ->
-        let ty = convert_type names ty in
-        let name = Common.Var.of_string v in
-        let x = Expr.convert names x in
-        (StringMap.add v name names), (Top(info, ty, Some name, x))
-    | Annot.TopRec(info, fns) ->
-        let names, fns = Expr.convert_lambdas names fns in
-        names, TopRec(info, fns)
-    | Annot.Extern(info, v, x) ->
-        let name = Common.Var.of_string v in
-        let x = { x with
-                    Common.External.return_type =
-                        convert_type names x.Common.External.return_type;
-                    Common.External.arg_types =
-                        List.map (convert_type names)
-                            x.Common.External.arg_types }
-        in
-        (StringMap.add v name names), (Extern(info, name, x))
-    | Annot.VariantDef(info, v, opts) ->
-        let name = Common.Var.of_string v in
-        let names = StringMap.add v name names in
-        let opts = List.map
-                    (fun (i, n, ts) ->
-                        let n' = Common.Var.of_string n in
-                        let ts = List.map (convert_type names) ts in
-                        (i, n', ts))
-                    opts
-        in
-        names, (VariantDef(info, name, opts))
+let convert names defn = 
+    let names, body = match defn.Annot.body with
+        | Annot.Top(ty, None, x) ->
+            let ty = convert_type names ty in
+            let x = Expr.convert names x in
+            names, (Top(ty, None, x))
+        | Annot.Top(ty, Some v, x) ->
+            let ty = convert_type names ty in
+            let name = Common.Var.of_string v in
+            let x = Expr.convert names x in
+            (StringMap.add v name names), (Top(ty, Some name, x))
+        | Annot.TopRec(fns) ->
+            let names, fns = Lambda.convert names fns in
+            names, TopRec(fns)
+        | Annot.Extern(v, x) ->
+            let name = Common.Var.of_string v in
+            let x = { x with
+                        Common.External.return_type =
+                            convert_type names x.Common.External.return_type;
+                        Common.External.arg_types =
+                            List.map (convert_type names)
+                                x.Common.External.arg_types }
+            in
+            (StringMap.add v name names), (Extern(name, x))
+        | Annot.VariantDef(v, opts) ->
+            let name = Common.Var.of_string v in
+            let names = StringMap.add v name names in
+            let opts = List.map
+                        (fun (i, n, ts) ->
+                            let n' = Common.Var.of_string n in
+                            let ts = List.map (convert_type names) ts in
+                            (i, n', ts))
+                        opts
+            in
+            names, (VariantDef(name, opts))
+    in
+    names,
+    {
+        info = defn.Annot.info;
+        body = body;
+    }
 ;;
 
 module C : IL.Conversion with type input = Annot.t and type output = t

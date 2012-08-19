@@ -18,44 +18,122 @@
 
 open Sexplib.Conv;;
 
-module Pattern = struct
+module rec Pattern: sig
 
-    type t = Pattern of Info.t * string
-                    * (string option list) with sexp;;
+    type s = Pattern of string * (string option list) 
+    and t = {
+        info: Info.t;
+        body: s;
+    } with sexp;;
 
-end;;
+    val make: Info.t -> string -> string option list -> t;;
 
-module Expr = struct
+end = struct
 
-    type arg = Common.StringType.t * (string option) with sexp;;
+    type s = Pattern of string * (string option list) 
+    and t = {
+        info: Info.t;
+        body: s;
+    } with sexp;;
 
-    type lambda = Info.t * string * (arg list) * Common.StringType.t * t
-    and t =
-        | Lambda of Info.t * (arg list) * t
-        | Let of Info.t * (string option) * t * t
-        | LetTuple of Info.t * (string option list) * t * t
-        | LetRec of Info.t * (lambda list) * t
-        | If of Info.t * t * t * t
-        | Match of Info.t * t * ((Pattern.t * t) list)
-        | Tuple of Info.t * (t list)
-        | BinOp of Info.t * t * Common.BinOp.t * t
-        | UnOp of Info.t * Common.UnOp.t * t
-        | Apply of Info.t * t * t
-        | Var of Info.t * string
-        | Const of Info.t * Common.Const.t
-        with sexp
+    let make info name args =
+        { info = info; body = Pattern(name, args) }
     ;;
 
+end and Arg : sig
+    type t = Common.StringType.t * (string option) with sexp;;
+end = struct
+    type t = Common.StringType.t * (string option) with sexp;;
+end and Lambda : sig
+
+    type t = {
+        info: Info.t;
+        name: string;
+        args: (Arg.t list);
+        rtype: Common.StringType.t;
+        body: Expr.t
+    } with sexp
+
+    val make : Info.t -> string -> Arg.t list -> Common.StringType.t
+                    -> Expr.t -> t;;
+
+end = struct
+
+    type t = {
+        info: Info.t;
+        name: string;
+        args: (Arg.t list);
+        rtype: Common.StringType.t;
+        body: Expr.t
+    } with sexp
+
+    let make info name args rtype body = {
+        info = info;
+        name = name;
+        args = args;
+        rtype = rtype;
+        body = body;
+    };;
+
+end and Expr : sig
+
+    type s =
+        | Lambda of Arg.t list * t
+        | Let of (string option) * t * t
+        | LetTuple of (string option list) * t * t
+        | LetRec of (Lambda.t list) * t
+        | If of t * t * t
+        | Match of t * ((Pattern.t * t) list)
+        | Tuple of t list
+        | BinOp of t * Common.BinOp.t * t
+        | UnOp of Common.UnOp.t * t
+        | Apply of t * t
+        | Var of string
+        | Const of Common.Const.t
+    and t = {
+        info: Info.t;
+        body: s;
+    } with sexp;;
+
+
+    val make : Info. t -> s -> t;;
+
+end = struct
+
+    type s =
+        | Lambda of Arg.t list * t
+        | Let of (string option) * t * t
+        | LetTuple of (string option list) * t * t
+        | LetRec of (Lambda.t list) * t
+        | If of t * t * t
+        | Match of t * ((Pattern.t * t) list)
+        | Tuple of t list
+        | BinOp of t * Common.BinOp.t * t
+        | UnOp of Common.UnOp.t * t
+        | Apply of t * t
+        | Var of string
+        | Const of Common.Const.t
+    and t = {
+        info: Info.t;
+        body: s;
+    } with sexp;;
+
+    let make info body = { info = info; body = body };;
+
 end;;
 
-type t =
-    | Top of Info.t * (string option) * Expr.t
-    | TopRec of Info.t * (Expr.lambda list)
-    | Extern of Info.t * string * string Common.External.t
-    | VariantDef of Info.t * string
+type s =
+    | Top of (string option) * Expr.t
+    | TopRec of Lambda.t list
+    | Extern of string * string Common.External.t
+    | VariantDef of string
                         * ((Info.t * string * (Common.StringType.t list)) list)
-    with sexp
-;;
+and t = {
+    info: Info.t;
+    body: s;
+} with sexp;;
+
+let make info body = { info = info; body = body };
 
 type parse_result =
     | Form of t

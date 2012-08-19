@@ -17,38 +17,33 @@
 *)
 
 module InnerExpr : sig
-    type t =
-        | Let of Info.t * Common.VarType.t * Common.Arg.t * t * t
-        | If of Info.t * Common.VarType.t * t * t * t
-        | AllocTuple of Info.t * Common.VarType.t * Common.Tag.t
-                            * (Common.VarType.t * Common.Var.t) list
-        | GetField of Info.t * Common.VarType.t * int
-                            * (Common.VarType.t * Common.Var.t)
-        | Case of Info.t * Common.VarType.t
-                    * (Common.VarType.t * Common.Var.t)
-                    * ((Common.Tag.t * t) list)
-        | Label of Info.t * Common.VarType.t * t * Common.Var.t
-                                * Common.VarType.t Common.Var.Map.t * t
-        | Goto of Info.t * Common.Var.t
+
+    type s =
+        | Let of Common.Arg.t * t * t
+        | If of t * t * t
+        | AllocTuple of Common.Tag.t * (Common.VarType.t * Common.Var.t) list
+        | GetField of int * (Common.VarType.t * Common.Var.t)
+        | Case of (Common.VarType.t * Common.Var.t) * ((Common.Tag.t * t) list)
+        | Label of t * Common.Var.t * Common.VarType.t Common.Var.Map.t * t
+        | Goto of Common.Var.t
                     * ((Common.VarType.t * Common.Var.t) Common.Var.Map.t)
-        | BinOp of Info.t * Common.VarType.t * t * Common.BinOp.t * t
-        | UnOp of Info.t * Common.VarType.t * Common.UnOp.t * t
-        | InnerApply of Info.t * Common.VarType.t
-                            * (Common.VarType.t * Common.Var.t)
+        | BinOp of t * Common.BinOp.t * t
+        | UnOp of Common.UnOp.t * t
+        | InnerApply of (Common.VarType.t * Common.Var.t)
                             * ((Common.VarType.t * Common.Var.t) list)
-        | InnerSafeApply of Info.t * Common.VarType.t
-                                * (Common.VarType.t * Common.Var.t) * int
+        | InnerSafeApply of (Common.VarType.t * Common.Var.t) * int
                                 * ((Common.VarType.t * Common.Var.t) list)
-        | InnerCall of Info.t * Common.VarType.t
-                            * (Common.VarType.t * Common.Var.t)
+        | InnerCall of (Common.VarType.t * Common.Var.t)
                             * ((Common.VarType.t * Common.Var.t) list)
-        | Var of Info.t * Common.VarType.t * Common.Var.t
-        | Const of Info.t * Common.VarType.t * Common.Const.t
-        | CallExtern of Info.t * Common.VarType.t
-                            * Common.Var.t Common.External.t
+        | Var of Common.Var.t
+        | Const of Common.Const.t
+        | CallExtern of Common.Var.t Common.External.t
                             * ((Common.VarType.t * Common.Var.t) list)
-        with sexp
-    ;;
+    and t = {
+        info: Info.t;
+        typ: Common.VarType.t;
+        body: s;
+    } with sexp;;
 
     val get_type : t -> Common.VarType.t;;
 
@@ -56,38 +51,38 @@ end;;
 
 module TailExpr : sig
 
-    type t =
+    type s =
         | Return of InnerExpr.t
-        | Let of Info.t * Common.VarType.t * Common.Arg.t * InnerExpr.t * t
-        | If of Info.t * Common.VarType.t * InnerExpr.t * t * t
-        | Case of Info.t * Common.VarType.t
-                    * (Common.VarType.t * Common.Var.t)
-                    * ((Common.Tag.t * t) list)
-        | Label of Info.t * Common.VarType.t * t * Common.Var.t
-                                * Common.VarType.t Common.Var.Map.t * t
-        | Goto of Info.t * Common.Var.t
+        | Let of Common.Arg.t * InnerExpr.t * t
+        | If of InnerExpr.t * t * t
+        | Case of (Common.VarType.t * Common.Var.t) * ((Common.Tag.t * t) list)
+        | Label of t * Common.Var.t * Common.VarType.t Common.Var.Map.t * t
+        | Goto of Common.Var.t
                     * ((Common.VarType.t * Common.Var.t) Common.Var.Map.t)
-        | TailCall of Info.t * Common.VarType.t
-                            * (Common.VarType.t * Common.Var.t)
+        | TailCall of (Common.VarType.t * Common.Var.t)
                             * ((Common.VarType.t * Common.Var.t) list)
-        | TailCallExtern of Info.t * Common.VarType.t
-                                * Common.Var.t Common.External.t
+        | TailCallExtern of Common.Var.t Common.External.t
                                 * ((Common.VarType.t * Common.Var.t) list)
-        with sexp
-
-    ;;
+    and t = {
+        info : Info.t;
+        typ: Common.VarType.t;
+        body: s;
+    } with sexp;;
 
     val get_type : t -> Common.VarType.t;;
 
 end;;
 
-type t =
-    | TopFun of Info.t * Common.VarType.t * Common.Var.t
-                    * Common.Arg.t list * TailExpr.t
-    | TopVar of Info.t * Common.VarType.t * Common.Var.t * InnerExpr.t
-    | TopForward of Info.t * Common.VarType.t * Common.Var.t * int
-    | TopExpr of Info.t * Common.VarType.t * InnerExpr.t
-    with sexp
-;;
+type s =
+    | TopFun of Common.Var.t * Common.Arg.t list * TailExpr.t
+    | TopVar of Common.Var.t * InnerExpr.t
+    | TopForward of Common.Var.t * int
+    | TopExpr of InnerExpr.t
+and t = {
+    info: Info.t;
+    typ: Common.VarType.t;
+    body: s;
+} with sexp;;
 
 module Convert : IL.Converter with type output = t;;
+

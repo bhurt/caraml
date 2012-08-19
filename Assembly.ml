@@ -166,8 +166,11 @@ module InnerExpr = struct
             Common.Var.Map.add label [ start_block, bindings ] gotos
     ;;
 
-    let rec assemble gotos names start_block = function
-        | CallOpt.InnerExpr.Let(_, _, (_, n), x, y) ->
+    let rec assemble gotos names start_block expr = 
+        let info = expr.CallOpt.InnerExpr.info in
+        let ty = expr.CallOpt.InnerExpr.typ in
+        match expr.CallOpt.InnerExpr.body with
+        | CallOpt.InnerExpr.Let((_, n), x, y) ->
             begin
                 let (t, gotos) = assemble gotos names start_block x in
                 match t with
@@ -181,7 +184,7 @@ module InnerExpr = struct
                     assemble gotos names b y
             end
 
-        | CallOpt.InnerExpr.If(_, _, x, y, z) ->
+        | CallOpt.InnerExpr.If(x, y, z) ->
             begin
                 let (t, gotos) = assemble gotos names start_block x in
                 match t with
@@ -203,7 +206,7 @@ module InnerExpr = struct
                     (merge_blocks true_t false_t), gotos
             end
 
-        | CallOpt.InnerExpr.AllocTuple(info, ty, tag, xs) ->
+        | CallOpt.InnerExpr.AllocTuple(tag, xs) ->
             if (List.length xs) > 32 then
                 raise (Error.Compiler_error(oversized_tuple,info))
             else
@@ -213,12 +216,12 @@ module InnerExpr = struct
                 let _ = write_tuple (Common.Tag.to_int tag) b names ptr xs in
                 Some(ptr, b), gotos
 
-        | CallOpt.InnerExpr.GetField(info, ty, num, (ty', v)) ->
+        | CallOpt.InnerExpr.GetField(num, (ty', v)) ->
             let res = get_name start_block names v in
             Some((LlvmUtils.get_member start_block res ty num), start_block),
             gotos
 
-        | CallOpt.InnerExpr.Case(info, ty, (ty', v), opts) ->
+        | CallOpt.InnerExpr.Case((ty', v), opts) ->
             let default = LlvmIntf.new_block () in
             let _ = LlvmIntf.unreachable default in
             let x = get_name start_block names v in
@@ -256,7 +259,7 @@ module InnerExpr = struct
             else
                 None, gotos
 
-        | CallOpt.InnerExpr.Label(_, _, x, label, bindings, y) ->
+        | CallOpt.InnerExpr.Label(x, label, bindings, y) ->
             begin
                 let (t, gotos) = assemble gotos names start_block x in
                 match handle_label gotos names label bindings with
@@ -266,10 +269,10 @@ module InnerExpr = struct
                     (merge_blocks t u), gotos
             end
 
-        | CallOpt.InnerExpr.Goto(_, label, bindings) ->
+        | CallOpt.InnerExpr.Goto(label, bindings) ->
             None, (handle_goto gotos names start_block label bindings)
 
-        | CallOpt.InnerExpr.BinOp(_, _, x, op, y) ->
+        | CallOpt.InnerExpr.BinOp(x, op, y) ->
             (* There is some opportunity for better dead-code elimination
              * here.
              *)
@@ -286,7 +289,7 @@ module InnerExpr = struct
                         Some(res, b), gotos
             end
 
-        | CallOpt.InnerExpr.UnOp(_, _, op, x) ->
+        | CallOpt.InnerExpr.UnOp(op, x) ->
             begin
                 let (t, gotos) = assemble gotos names start_block x in
                 match t with
@@ -296,7 +299,7 @@ module InnerExpr = struct
                     Some(res, b), gotos
             end
 
-        | CallOpt.InnerExpr.InnerApply(_, ty, f, xs) ->
+        | CallOpt.InnerExpr.InnerApply(f, xs) ->
             begin
                 assert ((List.length xs) <= Config.max_args);
                 let xs = List.map (box start_block names) xs in
@@ -306,7 +309,7 @@ module InnerExpr = struct
                 Some(res, start_block), gotos
             end
 
-        | CallOpt.InnerExpr.InnerSafeApply(_, _, f, nargs, xs) ->
+        | CallOpt.InnerExpr.InnerSafeApply(f, nargs, xs) ->
             begin
                 assert (nargs <= Config.max_args);
                 assert ((List.length xs) <= Config.max_args);
@@ -329,7 +332,7 @@ module InnerExpr = struct
                 in
                 Some(c), gotos
             end
-        | CallOpt.InnerExpr.InnerCall(_, _, f, xs) ->
+        | CallOpt.InnerExpr.InnerCall(f, xs) ->
             let xs = List.map
                         (fun x -> get_name start_block names (snd x))
                         xs
@@ -339,10 +342,10 @@ module InnerExpr = struct
             let res = LlvmIntf.call start_block f xs in
             Some(res, start_block), gotos
 
-        | CallOpt.InnerExpr.Var(_, _, v) ->
+        | CallOpt.InnerExpr.Var(v) ->
             let res = get_name start_block names v in
             Some(res, start_block), gotos
-        | CallOpt.InnerExpr.Const(_, _, c) ->
+        | CallOpt.InnerExpr.Const(c) ->
             let res =
                 match c with
                     | Common.Const.Boolean b -> LlvmIntf.bool_const b
@@ -351,7 +354,7 @@ module InnerExpr = struct
                     | Common.Const.Float x -> LlvmIntf.float_const x
             in
             Some(res, start_block), gotos
-        | CallOpt.InnerExpr.CallExtern(_, _, xtern, xs) ->
+        | CallOpt.InnerExpr.CallExtern(xtern, xs) ->
             let xs = List.map
                         (fun x -> get_name start_block names (snd x))
                         xs
@@ -373,7 +376,8 @@ end;;
 
 module TailExpr = struct
 
-    let rec assemble gotos names start_block = function
+    let rec assemble gotos names start_block expr =
+        match expr.CallOpt.TailExpr.body with
         | CallOpt.TailExpr.Return(x) ->
             begin
                 let t, gotos = InnerExpr.assemble gotos names start_block x in
@@ -384,7 +388,7 @@ module TailExpr = struct
                     gotos
             end
 
-        | CallOpt.TailExpr.Let(_, _, (_, n), x, y) ->
+        | CallOpt.TailExpr.Let((_, n), x, y) ->
             begin
                 let t, gotos = InnerExpr.assemble gotos names start_block x in
                 match t with
@@ -398,7 +402,7 @@ module TailExpr = struct
                     assemble gotos names b y
             end
 
-        | CallOpt.TailExpr.If(_, _, x, y, z) ->
+        | CallOpt.TailExpr.If(x, y, z) ->
             begin
                 let t, gotos = InnerExpr.assemble gotos names start_block x in
                 match t with
@@ -414,7 +418,7 @@ module TailExpr = struct
                     gotos
             end
 
-        | CallOpt.TailExpr.Case(info, ty, (ty', v), opts) ->
+        | CallOpt.TailExpr.Case((ty', v), opts) ->
             let default = LlvmIntf.new_block () in
             let _ = LlvmIntf.unreachable default in
             let test = InnerExpr.get_name start_block names v in
@@ -432,7 +436,7 @@ module TailExpr = struct
                 gotos
                 opts
 
-        | CallOpt.TailExpr.Label(info, ty, x, label, bindings, y) ->
+        | CallOpt.TailExpr.Label(x, label, bindings, y) ->
             begin
                 let gotos = assemble gotos names start_block x in
                 match InnerExpr.handle_label gotos names label bindings with
@@ -441,10 +445,10 @@ module TailExpr = struct
                     assemble gotos names target y
             end
 
-        | CallOpt.TailExpr.Goto(info, label, bindings) ->
+        | CallOpt.TailExpr.Goto(label, bindings) ->
             InnerExpr.handle_goto gotos names start_block label bindings
 
-        | CallOpt.TailExpr.TailCall(_, _, f, xs) ->
+        | CallOpt.TailExpr.TailCall(f, xs) ->
             let xs = List.map (fun x -> InnerExpr.get_name start_block
                                             names (snd x)) xs
             in
@@ -454,7 +458,7 @@ module TailExpr = struct
             let _ = LlvmIntf.ret start_block res in
             gotos
 
-        | CallOpt.TailExpr.TailCallExtern(_, _, xtern, xs) ->
+        | CallOpt.TailExpr.TailCallExtern(xtern, xs) ->
             let xs = List.map
                         (fun x -> InnerExpr.get_name
                                         start_block names (snd x))
@@ -620,14 +624,16 @@ let make_forward ty n nargs =
     None
 ;;
 
-let assemble = function
-    | CallOpt.TopFun(_, _, n, args, x) ->
+let assemble top =
+    let ty = top.CallOpt.typ in
+    match top.CallOpt.body with
+    | CallOpt.TopFun(n, args, x) ->
             let _ = make_direct_fn n args x in
             let _ = make_apply_fn n args x in
             make_init_fn n args x
-    | CallOpt.TopVar(_, ty, n, x) -> make_init_var ty n x
-    | CallOpt.TopForward(_, ty, n, nargs) -> make_forward ty n nargs
-    | CallOpt.TopExpr(_, _, x) -> make_static x
+    | CallOpt.TopVar(n, x) -> make_init_var ty n x
+    | CallOpt.TopForward(n, nargs) -> make_forward ty n nargs
+    | CallOpt.TopExpr(x) -> make_static x
 ;;
 
 

@@ -20,25 +20,33 @@ open Sexplib.Conv;;
 
 module rec Pattern: sig
 
-    type s = Pattern of string * (string option list) 
+    type s =
+        | Constructor of string * (t list)
+        | Variable of string
+        | Discard
+        | Or of t * t
+        | When of t * Expr.t
+        | With of t * ((string * Expr.t) list)
+        | As of t * string
     and t = {
         info: Info.t;
         body: s;
     } with sexp;;
-
-    val make: Info.t -> string -> string option list -> t;;
 
 end = struct
 
-    type s = Pattern of string * (string option list) 
+    type s =
+        | Constructor of string * (t list)
+        | Variable of string
+        | Discard
+        | Or of t * t
+        | When of t * Expr.t
+        | With of t * ((string * Expr.t) list)
+        | As of t * string
     and t = {
         info: Info.t;
         body: s;
     } with sexp;;
-
-    let make info name args =
-        { info = info; body = Pattern(name, args) }
-    ;;
 
 end and Arg : sig
     type t = Common.StringType.t * (string option) with sexp;;

@@ -38,6 +38,7 @@ let expr body = AST.Expr.make (info ()) body;;
 %}
 
 %token <string> VAR
+%token <string> CVAR
 %token <bool> BOOLEAN_VAL
 %token <int> INT_VAL
 %token <float> FLOAT_VAL
@@ -46,6 +47,7 @@ let expr body = AST.Expr.make (info ()) body;;
 
 %token AND
 %token ARROW
+%token AS
 %token BOOL_AND
 %token BOOLEAN
 %token BOOL_NOT
@@ -93,6 +95,7 @@ let expr body = AST.Expr.make (info ()) body;;
 %token TIMES
 %token TYPE
 %token UNIT
+%token WHEN
 %token WITH
 
 %start top_level
@@ -211,10 +214,57 @@ match_clause:
 ;
 
 pattern:
-      VAR { AST.Pattern.make (info ()) $1 [] }
-    | VAR OPEN_PAREN binding_list CLOSE_PAREN  {
-            AST.Pattern.make (info ()) $1 (List.rev $3)
+      pattern PIPE as_pattern {
+            {   AST.Pattern.info = info ();
+                AST.Pattern.body = AST.Pattern.Or($1, $3) }
         }
+    | as_pattern { $1 }
+;
+
+as_pattern:
+      as_pattern AS VAR { 
+            {   AST.Pattern.info = info ();
+                AST.Pattern.body = AST.Pattern.As($1, $3) }
+        }
+    | as_pattern WHEN expr {
+            {   AST.Pattern.info = info ();
+                AST.Pattern.body = AST.Pattern.When($1, $3) }
+        }
+    | as_pattern WITH var_defns {
+            {   AST.Pattern.info = info ();
+                AST.Pattern.body = AST.Pattern.With($1, List.rev $3) }
+        }
+    | constructor_pattern { $1 }
+;
+
+var_defns:
+      VAR EQUALS expr { [ $1, $3 ] }
+    | var_defns AND VAR EQUALS expr { ($3, $5) :: $1 }
+;
+
+constructor_pattern:
+      CVAR constructor_args {
+            {   AST.Pattern.info = info ();
+                AST.Pattern.body = AST.Pattern.Constructor($1, List.rev $2) }
+        }
+    | base_pattern { $1 }
+;
+
+constructor_args:
+      constructor_args base_pattern { $2 :: $1 }
+    | /* epsilon */ { [] }
+;
+
+base_pattern:
+      VAR {
+            {   AST.Pattern.info = info ();
+                AST.Pattern.body = AST.Pattern.Variable($1) }
+        }
+    | DISCARD {
+            {   AST.Pattern.info = info ();
+                AST.Pattern.body = AST.Pattern.Discard }
+        }
+    | OPEN_PAREN pattern CLOSE_PAREN { $2 }
 ;
 
 binding_list:
@@ -333,6 +383,7 @@ apply_expr:
 
 base_expr:
       VAR { expr (AST.Expr.Var($1)) }
+    | CVAR { expr (AST.Expr.Var($1)) }
     | BOOLEAN_VAL { expr (AST.Expr.Const(Common.Const.Boolean $1)) }
     | INT_VAL { expr (AST.Expr.Const(Common.Const.Int $1)) }
     | FLOAT_VAL { expr (AST.Expr.Const(Common.Const.Float $1)) }
@@ -347,13 +398,13 @@ var_def:
 ;
 
 variant:
-      VAR { (info(), $1, []) }
-    | VAR OPEN_PAREN type_list CLOSE_PAREN {
-            (info (), $1, List.rev $3)
+      CVAR { (info(), $1, []) }
+    | CVAR type_list {
+            (info (), $1, List.rev $2)
         }
 ;
 
 type_list:
       type_expr { [ $1 ] }
-    | type_list COMMA type_expr { $3 :: $1 }
+    | type_list base_type_expr { $2 :: $1 }
 ;

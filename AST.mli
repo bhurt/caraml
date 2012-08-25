@@ -19,9 +19,10 @@
 module rec Pattern : sig
 
     type s =
-        | Constructor of string * (t list)
-        | Variable of string
         | Discard
+        | Variable of string
+        | Tuple of (t list)
+        | Constructor of string * (t list)
         | Or of t * t
         | When of t * Expr.t
         | With of t * ((string * Expr.t) list)

@@ -234,12 +234,27 @@ as_pattern:
             {   AST.Pattern.info = info ();
                 AST.Pattern.body = AST.Pattern.With($1, List.rev $3) }
         }
-    | constructor_pattern { $1 }
+    | tuple_match { $1 }
 ;
 
 var_defns:
       VAR EQUALS expr { [ $1, $3 ] }
     | var_defns AND VAR EQUALS expr { ($3, $5) :: $1 }
+;
+
+tuple_match:
+      tuple_match COMMA constructor_pattern {
+            match $1.AST.Pattern.body with
+            | AST.Pattern.Tuple(xs) ->
+                {   AST.Pattern.info = info();
+                    AST.Pattern.body =
+                        AST.Pattern.Tuple(List.append xs [ $3 ]) }
+            | x ->
+                {   AST.Pattern.info = info ();
+                    AST.Pattern.body =
+                        AST.Pattern.Tuple([ $1; $3 ]) }
+        }
+    | constructor_pattern { $1 }
 ;
 
 constructor_pattern:
@@ -265,11 +280,6 @@ base_pattern:
                 AST.Pattern.body = AST.Pattern.Discard }
         }
     | OPEN_PAREN pattern CLOSE_PAREN { $2 }
-;
-
-binding_list:
-      var_or_discard { [ $1 ] }
-    | binding_list COMMA var_or_discard { $3 :: $1 }
 ;
 
 tuple_pattern:

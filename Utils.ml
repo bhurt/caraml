@@ -179,3 +179,15 @@ let map_accum f init xs =
     in
     loop init [] xs
 ;;
+
+let map2_accum f init xs ys =
+    let rec loop acc zs xs ys =
+        match xs, ys with
+        | [], [] -> acc, List.rev zs
+        | (x :: xs), (y :: ys) ->
+            let acc, z = f acc x y in
+            loop acc (z :: zs) xs ys
+        | _, _ -> failwith "map2_accum: different length lists"
+    in
+    loop init [] xs ys
+;;

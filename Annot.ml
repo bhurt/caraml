@@ -49,6 +49,7 @@ module Errors : sig
     val constructor_not_found : Info.t -> string -> string -> 'a;;
     val type_not_found : Info.t -> string -> 'a;;
     val pattern_vars : Info.t -> string list -> 'a;;
+    val shadowed_pattern_var : Info.t -> string -> 'a;;
 
 end = struct
 
@@ -199,6 +200,15 @@ end = struct
         raise (Error.Compiler_error(f, info))
     ;;
 
+    let shadowed_pattern_var info var =
+        let f indent =
+            Format.print_string "The variable \"";
+            Format.print_string var;
+            Format.print_string "\" is shadowed within a pattern."
+        in
+        raise (Error.Compiler_error(f, info))
+    ;;
+
 end
 
 let unify info t1 t2 =
@@ -245,6 +255,8 @@ module rec Pattern : sig
     val defined_vars : t -> StringSet.t;;
 
     val convert : type_env_t -> type_t -> AST.Pattern.t -> type_env_t * t;;
+
+    val check_shadow : AST.Pattern.t -> unit;;
 
 end = struct
 
@@ -405,6 +417,49 @@ end = struct
                 type_env, As(patt, n)
         in
         type_env, { info; match_type; body }
+    ;;
+
+    let check_shadow pat =
+        let rec loop x =
+            match x.AST.Pattern.body with
+            | AST.Pattern.Discard -> StringSet.empty
+            | AST.Pattern.Variable(s) -> StringSet.singleton s
+            | AST.Pattern.Tuple(xs)
+            | AST.Pattern.Constructor(_, xs) ->
+                List.fold_left
+                    (fun vs t ->
+                        let ws = loop t in
+                        let errors = StringSet.inter vs ws in
+                        if not (StringSet.is_empty errors) then
+                            Errors.shadowed_pattern_var x.AST.Pattern.info
+                                (StringSet.choose errors)
+                        else
+                            StringSet.union vs ws)
+                    StringSet.empty
+                    xs
+            | AST.Pattern.Or(x, y) ->
+                let vs = loop x in
+                let _ = loop y in
+                vs
+            | AST.Pattern.When(patt, _) -> loop patt
+            | AST.Pattern.With(patt, ds) ->
+                List.fold_left
+                    (fun vs (n, _) ->
+                        if (StringSet.mem n vs) then
+                            Errors.shadowed_pattern_var x.AST.Pattern.info n
+                        else
+                            StringSet.add n vs)
+                    (loop patt)
+                    ds
+            | AST.Pattern.As(patt, n) ->
+                let vs = loop patt in
+                if (StringSet.mem n vs) then
+                    Errors.shadowed_pattern_var x.AST.Pattern.info n
+                else
+                    StringSet.add n vs
+        in
+        let _ = loop pat in
+        ()
     ;;
 
 end and Arg : sig
@@ -638,6 +693,7 @@ end = struct
                 let bindings =
                     List.map
                         (fun (patt, y) ->
+                            let _ = Pattern.check_shadow patt in
                             let type_env, patt =
                                 Pattern.convert type_env x.typ patt
                             in

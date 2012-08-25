@@ -29,6 +29,7 @@ end = struct
 end;;
 
 module StringMap = Map.Make(String);;
+module StringSet = Set.Make(String);;
 
 type type_t = CheckedString.t Type.t with sexp;;
 
@@ -37,105 +38,174 @@ type type_env_t = {
     type_defn : type_t list StringMap.t StringMap.t;
 };;
 
-let type_error info t1 t2 =
-    let f indent =
-        Format.print_string "Type error:";
-        Format.print_space ();
-        Format.print_string "can not unify ";
-        Format.open_box indent;
-        Type.pprint CheckedString.to_string indent t1;
-        Format.close_box ();
-        Format.print_space ();
-        Format.print_string "with ";
-        Format.open_box indent;
-        Type.pprint CheckedString.to_string indent t2;
-        Format.close_box ();
-        ()
-    in
-    raise (Error.Compiler_error(f, info))
-;;
+module Errors : sig
+    val type_error : Info.t -> type_t -> type_t -> 'a;;
+    val tuple_arity_error : Info.t -> int -> int -> 'a;;
+    val not_tuple_type_error : Info.t -> type_t -> 'a;;
+    val unknown_var : Info.t -> string -> 'a;;
+    val not_a_function : Info.t -> type_t -> 'a;;
+    val not_a_variant : Info.t -> type_t -> 'a;;
+    val invalid_number_of_bindings : Info.t -> string -> int -> int -> 'a;;
+    val constructor_not_found : Info.t -> string -> string -> 'a;;
+    val type_not_found : Info.t -> string -> 'a;;
+    val pattern_vars : Info.t -> string list -> 'a;;
+
+end = struct
+
+    let type_error info t1 t2 =
+        let f indent =
+            Format.print_string "Type error:";
+            Format.print_space ();
+            Format.print_string "can not unify ";
+            Format.open_box indent;
+            Type.pprint CheckedString.to_string indent t1;
+            Format.close_box ();
+            Format.print_space ();
+            Format.print_string "with ";
+            Format.open_box indent;
+            Type.pprint CheckedString.to_string indent t2;
+            Format.close_box ();
+            ()
+        in
+        raise (Error.Compiler_error(f, info))
+    ;;
+
+    let tuple_arity_error info expected got =
+        let f _ =
+            Format.print_string
+                (Printf.sprintf "Tuple arity error, expected %d members, got %d"
+                                    expected got);
+            ()
+        in
+        raise (Error.Compiler_error(f, info))
+    ;;
+
+    let not_tuple_type_error info ty =
+        let f indent =
+            Format.print_string "Type error:";
+            Format.print_space ();
+            Format.print_string "expected a tuple type, but got type:";
+            Format.print_space ();
+            Format.open_box indent;
+            Type.pprint CheckedString.to_string indent ty;
+            Format.close_box ();
+            ()
+        in
+        raise (Error.Compiler_error(f, info))
+    ;;
+
+    let unknown_var info v =
+        let f indent =
+            Format.print_string "Unknown name:";
+            Format.print_space ();
+            Format.print_string v;
+            ()
+        in
+        raise (Error.Compiler_error(f, info))
+    ;;
+
+    let not_a_function info f_ty =
+        let f indent =
+            Format.print_string "Type error:";
+            Format.print_space ();
+            Format.print_string "expected a function type, but got type:";
+            Format.print_space ();
+            Format.open_box indent;
+            Type.pprint CheckedString.to_string indent f_ty;
+            Format.close_box ();
+            ()
+        in
+        raise (Error.Compiler_error(f, info))
+    ;;
+
+    let not_a_variant info ty =
+        let f indent =
+            Format.print_string "Type error:";
+            Format.print_space ();
+            Format.print_string "expected a variant type, but got type:";
+            Format.print_space ();
+            Format.open_box indent;
+            Type.pprint CheckedString.to_string indent ty;
+            Format.close_box ();
+            ()
+        in
+        raise (Error.Compiler_error(f, info))
+    ;;
+
+    let invalid_number_of_bindings info name expected got =
+        let f indent =
+            Format.print_string "Error:";
+            Format.print_space ();
+            Format.print_string
+                "Invalid number of parameters for constructor:";
+            Format.print_space ();
+            Format.print_string
+                (Printf.sprintf "Expected %d, got %d." expected got);
+            ()
+        in
+        raise (Error.Compiler_error(f, info))
+    ;;
+
+    let constructor_not_found info tname cname =
+        let f indent =
+            Format.print_string "Error:";
+            Format.print_space ();
+            Format.print_string "Could not find constructor";
+            Format.print_space ();
+            Format.print_string cname;
+            Format.print_space ();
+            Format.print_string "in type";
+            Format.print_space ();
+            Format.print_string tname;
+            ()
+        in
+        raise (Error.Compiler_error(f, info))
+    ;;
+
+    let type_not_found info tname =
+        let f indent =
+            Format.print_string "Error:";
+            Format.print_space ();
+            Format.print_string "Could not find type";
+            Format.print_space ();
+            Format.print_string tname;
+            ()
+        in
+        raise (Error.Compiler_error(f, info))
+    ;;
+
+    let pattern_vars info vars =
+        let f indent =
+            Format.print_string "Error:";
+            Format.print_space ();
+            Format.print_string "The following variables were declared in one branch of a pattern, but not the other: ";
+            let rec loop = function
+                | x :: ((_ :: _) as xs) ->
+                    let () = Format.open_box indent in
+                    let _ = Format.print_string x in
+                    let _ = Format.print_string "," in
+                    let () = Format.close_box () in
+                    let _ = Format.print_space () in
+                    loop xs
+                | [ x ] ->
+                    let () = Format.open_box indent in
+                    let _ = Format.print_string x in
+                    let () = Format.close_box () in
+                    ()
+                | [] -> assert false
+            in
+            loop vars
+        in
+        raise (Error.Compiler_error(f, info))
+    ;;
+
+end
 
 let unify info t1 t2 =
     if not (Type.equals t1 t2) then
-        type_error info t1 t2
+        Errors.type_error info t1 t2
     else
         true
-;;
-
-let tuple_arity_error info expected got =
-    let f _ =
-        Format.print_string
-            (Printf.sprintf "Tuple arity error, expected %d members, got %d"
-                                expected got);
-        ()
-    in
-    raise (Error.Compiler_error(f, info))
-;;
-
-let not_tuple_type_error info ty =
-    let f indent =
-        Format.print_string "Type error:";
-        Format.print_space ();
-        Format.print_string "expected a tuple type, but got type:";
-        Format.print_space ();
-        Format.open_box indent;
-        Type.pprint CheckedString.to_string indent ty;
-        Format.close_box ();
-        ()
-    in
-    raise (Error.Compiler_error(f, info))
-;;
-
-let unknown_var info v =
-    let f indent =
-        Format.print_string "Unknown name:";
-        Format.print_space ();
-        Format.print_string v;
-        ()
-    in
-    raise (Error.Compiler_error(f, info))
-;;
-
-let not_a_function info f_ty =
-    let f indent =
-        Format.print_string "Type error:";
-        Format.print_space ();
-        Format.print_string "expected a function type, but got type:";
-        Format.print_space ();
-        Format.open_box indent;
-        Type.pprint CheckedString.to_string indent f_ty;
-        Format.close_box ();
-        ()
-    in
-    raise (Error.Compiler_error(f, info))
-;;
-
-let not_a_variant info ty =
-    let f indent =
-        Format.print_string "Type error:";
-        Format.print_space ();
-        Format.print_string "expected a variant type, but got type:";
-        Format.print_space ();
-        Format.open_box indent;
-        Type.pprint CheckedString.to_string indent ty;
-        Format.close_box ();
-        ()
-    in
-    raise (Error.Compiler_error(f, info))
-;;
-
-let invalid_number_of_bindings info name expected got =
-    let f indent =
-        Format.print_string "Error:";
-        Format.print_space ();
-        Format.print_string
-            "Invalid number of parameters for constructor:";
-        Format.print_space ();
-        Format.print_string
-            (Printf.sprintf "Expected %d, got %d." expected got);
-        ()
-    in
-    raise (Error.Compiler_error(f, info))
 ;;
 
 let rec convert_type info type_env = function
@@ -151,27 +221,191 @@ let rec convert_type info type_env = function
             let name = CheckedString.of_string name in
             Type.Named(name)
         else
-            unknown_var info name
+            Errors.unknown_var info name
     | Type.Base(b) -> Type.Base(b)
 ;;
 
 module rec Pattern : sig
 
-    type s = Pattern of string * ((type_t * string option) list)
+    type s =
+        | Discard
+        | Variable of string
+        | Tuple of t list
+        | Constructor of string * (t list)
+        | Or of t * t
+        | When of t * Expr.t
+        | With of t * ((string * Expr.t) list)
+        | As of t * string
     and t = {
         info: Info.t;
         match_type : type_t;
         body: s
     } with sexp;;
+
+    val defined_vars : t -> StringSet.t;;
+
+    val convert : type_env_t -> type_t -> AST.Pattern.t -> type_env_t * t;;
 
 end = struct
 
-    type s = Pattern of string * ((type_t * string option) list)
+    type s =
+        | Discard
+        | Variable of string
+        | Tuple of (t list)
+        | Constructor of string * (t list)
+        | Or of t * t
+        | When of t * Expr.t
+        | With of t * ((string * Expr.t) list)
+        | As of t * string
     and t = {
         info: Info.t;
         match_type : type_t;
         body: s
     } with sexp;;
+
+    let defined_vars patt =
+        let rec loop vars patt =
+            match patt.body with
+            | Discard -> vars
+            | Variable(s) -> StringSet.add s vars
+            | Tuple(xs)
+            | Constructor(_, xs) ->
+                List.fold_left loop vars xs
+            | Or(_, y) ->
+                (* We assume both branchs have the same variables defined,
+                 * so we only need to traverse one.  Due to how patterns
+                 * get constructed, the right branch is generally
+                 * shallower, so we traverse it.
+                 *)
+                loop vars y
+            | When(x, _) -> loop vars x
+            | With(x, ds) ->
+                let vars = List.fold_left
+                                (fun vars (n, _) -> StringSet.add n vars)
+                                vars ds
+                in
+                loop vars x
+            | As(x, n) -> loop (StringSet.add n vars) x
+        in
+        loop StringSet.empty patt
+    ;;
+
+    let rec convert type_env match_type ast =
+        let info = ast.AST.Pattern.info in
+        let type_env, body =
+            match ast.AST.Pattern.body with
+            | AST.Pattern.Discard -> type_env, Discard
+            | AST.Pattern.Variable(s) ->
+                { type_env with
+                    type_map = StringMap.add s match_type type_env.type_map },
+                Variable(s)
+
+            | AST.Pattern.Tuple(xs) ->
+                begin
+                    match match_type with
+                    | Type.Tuple(ts) ->
+                        if (List.length xs) != (List.length ts) then
+                            Errors.tuple_arity_error info (List.length ts)
+                                    (List.length xs)
+                        else
+                            let type_env, xs =
+                                Utils.map2_accum convert type_env ts xs
+                            in
+                            type_env, Tuple(xs)
+                    | _ ->
+                        Errors.not_tuple_type_error info match_type
+                end
+
+            | AST.Pattern.Constructor(name, xs) ->
+                begin
+                    match match_type with
+                    | Type.Named(xname) ->
+                        let ts =
+                            try
+                                let tmap = StringMap.find
+                                            (CheckedString.to_string xname)
+                                            type_env.type_defn
+                                in
+                                try
+                                    StringMap.find name tmap
+                                with
+                                | Not_found ->
+                                    Errors.constructor_not_found info
+                                            (CheckedString.to_string xname)
+                                            name
+                            with
+                            | Not_found ->
+                                Errors.type_not_found info
+                                        (CheckedString.to_string xname)
+                        in
+                        if (List.length xs) != (List.length ts) then
+                            Errors.tuple_arity_error info (List.length ts)
+                                    (List.length xs)
+                        else
+                            let type_env, xs =
+                                Utils.map2_accum convert type_env ts xs
+                            in
+                            type_env, Tuple(xs)
+                    | _ ->
+                        Errors.not_a_variant info match_type
+                end
+
+            | AST.Pattern.Or(x, y) ->
+                let type_env_1, x = convert type_env match_type x in
+                let type_env_2, y = convert type_env match_type y in
+                let x_vars = defined_vars x in
+                let y_vars = defined_vars y in
+                let all_vars = StringSet.union x_vars y_vars in
+                let error_vars =
+                    StringSet.diff all_vars (StringSet.inter x_vars y_vars)
+                in
+                if not (StringSet.is_empty error_vars) then
+                    Errors.pattern_vars info (StringSet.elements error_vars)
+                else
+                    let () =
+                        StringSet.iter
+                            (fun v ->
+                                let _ =
+                                    unify info
+                                        (StringMap.find v type_env_1.type_map)
+                                        (StringMap.find v type_env_2.type_map)
+                                in
+                                ())
+                        all_vars
+                    in
+                    type_env_1, Or(x, y)
+
+            | AST.Pattern.When(patt, x) ->
+                let type_env, patt = convert type_env match_type patt in
+                let x = Expr.convert type_env x in
+                type_env, When(patt, x)
+
+            | AST.Pattern.With(patt, ds) ->
+                let type_env, patt = convert type_env match_type patt in
+                let type_env, ds =
+                    Utils.map_accum
+                        (fun type_env (n, x) ->
+                            let x = Expr.convert type_env x in
+                            let type_env = { type_env with
+                                type_map = StringMap.add n
+                                            x.Expr.typ type_env.type_map }
+                            in
+                            type_env, (n, x))
+                        type_env
+                        ds
+                in
+                type_env, With(patt, ds)
+
+            | AST.Pattern.As(patt, n) ->
+                let type_env, patt = convert type_env match_type patt in
+                let type_env = { type_env with
+                    type_map = StringMap.add n match_type
+                                type_env.type_map }
+                in
+                type_env, As(patt, n)
+        in
+        type_env, { info; match_type; body }
+    ;;
 
 end and Arg : sig
 
@@ -372,7 +606,7 @@ end = struct
                     match x.typ with
                     | Type.Tuple(ts) ->
                         if (List.length ts) != (List.length args) then
-                            tuple_arity_error x.info (List.length ts)
+                            Errors.tuple_arity_error x.info (List.length ts)
                                 (List.length args)
                         else
                             let args = List.map2 (fun a b -> a,b) ts args in
@@ -380,7 +614,7 @@ end = struct
                             let y = convert type_env y in
                             LetTuple(args, x, y)
                     | _ ->
-                        not_tuple_type_error x.info x.typ
+                        Errors.not_tuple_type_error x.info x.typ
                 end
 
             | AST.Expr.LetRec(fns, x) ->
@@ -400,16 +634,21 @@ end = struct
                 If(x, y, z)
 
             | AST.Expr.Match(x, bindings) ->
-                let (type_env, x, bindings) =
-                    convert_match type_env info x bindings
+                let x = convert type_env x in
+                let bindings =
+                    List.map
+                        (fun (patt, y) ->
+                            let type_env, patt =
+                                Pattern.convert type_env x.typ patt
+                            in
+                            let y = convert type_env y in
+                            (patt, y))
+                        bindings
                 in
-                let _ =
-                    List.fold_left
-                        (fun ty (_, x) ->
-                            let _ = unify info ty x.typ in
-                            ty)
-                        (snd (List.hd bindings)).typ
-                        (List.tl bindings)
+                let _ = List.fold_left (fun t x ->
+                                            let _ = unify info t (snd x).typ
+                                            in t)
+                            (snd (List.hd bindings)).typ (List.tl bindings)
                 in
                 Match(x, bindings)
 
@@ -440,7 +679,7 @@ end = struct
                         let _ = unify info x.typ y_ty in
                         Apply(f, x)
                     | _ ->
-                        not_a_function info f.typ
+                        Errors.not_a_function info f.typ
                 end
 
             | AST.Expr.Var(v) ->
@@ -449,7 +688,7 @@ end = struct
                         let _ = StringMap.find v type_env.type_map in
                         Var(v)
                     with
-                    | Not_found -> unknown_var info v
+                    | Not_found -> Errors.unknown_var info v
                 end
 
             | AST.Expr.Const(c) -> Const(c)
@@ -459,62 +698,6 @@ end = struct
         {   info = info;
             typ = typ;
             body = body; }
-
-    and convert_match type_env info x bindings =
-        let x = convert type_env x in
-        let x_typ = x.typ in
-        let type_defn =
-            match x_typ with
-            | Type.Named(n) ->
-                begin
-                    try
-                        StringMap.find (CheckedString.to_string n)
-                                        type_env.type_defn
-                    with
-                    | Not_found -> unknown_var x.info
-                                            (CheckedString.to_string n)
-                end
-            | _ -> not_a_variant x.info x_typ
-        in
-        let bindings =
-            List.map
-                (fun (pat, y) ->
-                    let (type_env, pat) =
-                        convert_pat x.typ type_env type_defn pat
-                    in
-                    let y = convert type_env y in
-                    (pat, y))
-                bindings
-        in
-        type_env, x, bindings
-    and convert_pat match_type type_env type_def pat =
-        match pat.AST.Pattern.body with
-        | AST.Pattern.Pattern(n, xs) ->
-            let tys =
-                try
-                    StringMap.find n type_def
-                with
-                | Not_found -> unknown_var pat.AST.Pattern.info n
-            in
-            if (List.length xs) != (List.length tys) then
-                invalid_number_of_bindings pat.AST.Pattern.info n
-                    (List.length tys) (List.length xs)
-            else
-                let type_map =
-                    List.fold_left2
-                        (fun s x t ->
-                            match x with
-                            | Some x -> StringMap.add x t s
-                            | None -> s)
-                        type_env.type_map
-                        xs
-                        tys
-                in
-                let xs = List.map2 (fun x t -> t, x) xs tys in
-                { type_env with type_map = type_map },
-                {   Pattern.info = pat.AST.Pattern.info;
-                    Pattern.match_type = match_type;
-                    Pattern.body = Pattern.Pattern(n, xs) }
     ;;
 
 end;;
@@ -550,7 +733,7 @@ let convert type_env x =
             in
             let fns = List.map (Lambda.convert type_env) fns in
             type_env, TopRec(fns)
-    
+
         | AST.Extern(v, extern) ->
             let extern = { extern with
                                 Common.External.return_type =

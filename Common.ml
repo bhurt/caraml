@@ -54,6 +54,8 @@ module Var = struct
         String.sub s 0 (String.index s '.')
     ;;
 
+    let derived s = of_string (orig_name s);;
+
     module Map = struct
         include XMap;;
 

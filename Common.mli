@@ -25,6 +25,7 @@ module Var : sig
     val orig_name : t -> string;;
 
     val generate : unit -> t;;
+    val derived : t -> t;;
 
     module Map : sig
         include Map.S with type key = t;;

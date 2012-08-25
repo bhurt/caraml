@@ -124,7 +124,7 @@ endif
 
 Parser.ml Parser.mli: Parser.mly
 ifndef VERBOSE
-	echo Generating $<
+	echo Generating $@
 endif
 	$(OCAMLYACC) -v $<
 

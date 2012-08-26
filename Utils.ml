@@ -191,3 +191,12 @@ let map2_accum f init xs ys =
     in
     loop init [] xs ys
 ;;
+
+let mapcat f xs =
+    let rec loop acc = function
+        | x :: xs -> loop (List.rev_append (f x) acc) xs
+        | [] -> List.rev acc
+    in
+    loop [] xs
+;;
+

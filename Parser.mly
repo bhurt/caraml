@@ -185,9 +185,6 @@ expr:
       LET var_or_discard EQUALS expr IN expr {
             expr (AST.Expr.Let($2, $4, $6))
         }
-    | LET tuple_pattern EQUALS expr IN expr {
-            expr (AST.Expr.LetTuple(List.rev $2, $4, $6))
-        }
     | LET REC rec_list IN expr {
             expr (AST.Expr.LetRec(List.rev $3, $5))
         }
@@ -284,11 +281,6 @@ base_pattern:
                 AST.Pattern.body = AST.Pattern.Discard }
         }
     | OPEN_PAREN pattern CLOSE_PAREN { $2 }
-;
-
-tuple_pattern:
-      tuple_pattern COMMA var_or_discard { $3 :: $1 }
-    | var_or_discard COMMA var_or_discard { [ $3; $1 ] }
 ;
 
 tuple_expr:

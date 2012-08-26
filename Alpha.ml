@@ -206,7 +206,6 @@ end and Expr : sig
     type s =
         | Lambda of Common.Arg.t list * t
         | Let of Common.Arg.t * t * t
-        | LetTuple of Common.Arg.t list * t * t
         | LetRec of (Lambda.t list) * t
         | If of t * t * t
         | Match of t * ((Pattern.t * t) list)
@@ -229,7 +228,6 @@ end = struct
     type s =
         | Lambda of Common.Arg.t list * t
         | Let of Common.Arg.t * t * t
-        | LetTuple of Common.Arg.t list * t * t
         | LetRec of (Lambda.t list) * t
         | If of t * t * t
         | Match of t * ((Pattern.t * t) list)
@@ -260,13 +258,6 @@ end = struct
                 let arg = map_arg names arg in
                 let y = convert names y in
                 Let(arg, x, y)
-    
-            | Annot.Expr.LetTuple(args, x, y) ->
-                let x = convert names x in
-                let names = List.fold_left rename_arg names args in
-                let args = List.map (map_arg names) args in
-                let y = convert names y in
-                LetTuple(args, x, y)
     
             | Annot.Expr.LetRec(fns, x) ->
                 let names, fns = Lambda.convert names fns in

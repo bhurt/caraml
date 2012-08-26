@@ -63,7 +63,6 @@ end and Expr : sig
     type s =
         | Lambda of Arg.t list * t
         | Let of Arg.t * t * t
-        | LetTuple of Arg.t list * t * t
         | LetRec of (Lambda.t list) * t
         | If of t * t * t
         | Match of t * ((Pattern.t * t) list)

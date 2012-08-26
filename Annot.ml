@@ -544,7 +544,6 @@ end and Expr : sig
     type s =
         | Lambda of Arg.t list * t
         | Let of Arg.t * t * t
-        | LetTuple of Arg.t list * t * t
         | LetRec of (Lambda.t list) * t
         | If of t * t * t
         | Match of t * ((Pattern.t * t) list)
@@ -567,7 +566,6 @@ end = struct
     type s =
         | Lambda of Arg.t list * t
         | Let of Arg.t * t * t
-        | LetTuple of Arg.t list * t * t
         | LetRec of (Lambda.t list) * t
         | If of t * t * t
         | Match of t * ((Pattern.t * t) list)
@@ -604,7 +602,6 @@ end = struct
         | Lambda(args, x) ->
             Type.fn_type (List.map fst args) x.typ
         | Let(_, _, y)
-        | LetTuple(_, _, y)
         | LetRec(_, y)
         | If(_, y, _)
                 -> y.typ
@@ -654,23 +651,6 @@ end = struct
                 let y = convert type_env y in
                 let v = (x_ty, Some(v)) in
                 Let(v, x, y)
-
-            | AST.Expr.LetTuple(args, x, y) ->
-                begin
-                    let x = convert type_env x in
-                    match x.typ with
-                    | Type.Tuple(ts) ->
-                        if (List.length ts) != (List.length args) then
-                            Errors.tuple_arity_error x.info (List.length ts)
-                                (List.length args)
-                        else
-                            let args = List.map2 (fun a b -> a,b) ts args in
-                            let type_env = add_args type_env args in
-                            let y = convert type_env y in
-                            LetTuple(args, x, y)
-                    | _ ->
-                        Errors.not_tuple_type_error x.info x.typ
-                end
 
             | AST.Expr.LetRec(fns, x) ->
                 let type_env = List.fold_left Lambda.add_lambda_type

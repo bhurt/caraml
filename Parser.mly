@@ -267,13 +267,17 @@ constructor_pattern:
 
 constructor_args:
       constructor_args base_pattern { $2 :: $1 }
-    | /* epsilon */ { [] }
+    | base_pattern { [ $1 ] }
 ;
 
 base_pattern:
       VAR {
             {   AST.Pattern.info = info ();
                 AST.Pattern.body = AST.Pattern.Variable($1) }
+        }
+    | CVAR {
+            {   AST.Pattern.info = info ();
+                AST.Pattern.body = AST.Pattern.Constructor($1, []); }
         }
     | DISCARD {
             {   AST.Pattern.info = info ();

@@ -26,6 +26,7 @@ module Var : sig
 
     val generate : unit -> t;;
     val derived : t -> t;;
+    val compare : t -> t -> int;;
 
     module Map : sig
         include Map.S with type key = t;;

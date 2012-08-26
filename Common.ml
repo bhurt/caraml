@@ -56,6 +56,8 @@ module Var = struct
 
     let derived s = of_string (orig_name s);;
 
+    let compare x y = String.compare x y;;
+
     module Map = struct
         include XMap;;
 

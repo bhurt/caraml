@@ -262,7 +262,7 @@ struct
     type state = Common.Tag.t Common.Var.Map.t;;
     type check_state = unit;;
 
-    let name = "match-reduce";;
+    let name = "case-reduce";;
     let sexp_of_output x = sexp_of_t x;;
 
     let dump_flag = ref false;;

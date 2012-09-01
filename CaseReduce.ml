@@ -28,7 +28,10 @@ module rec Lambda : sig
         body: Expr.t;
     } with sexp;;
 
-    val convert : Common.Tag.t Common.Var.Map.t -> Alpha.Lambda.t -> t;;
+    val do_convert : Expr.tagmap_t -> Common.Var.Set.t
+                        -> MatchReduce.Lambda.t -> t;;
+
+    val convert : Expr.tagmap_t -> MatchReduce.Lambda.t -> t;;
 
 end = struct
 
@@ -40,12 +43,20 @@ end = struct
         body: Expr.t;
     } with sexp;;
 
+    let do_convert tagmap live_vars x = {
+        info = x.MatchReduce.Lambda.info;
+        typ = x.MatchReduce.Lambda.typ;
+        name = x.MatchReduce.Lambda.name;
+        args = x.MatchReduce.Lambda.args;
+        body = Expr.do_convert tagmap live_vars x.MatchReduce.Lambda.body;
+    };;
+
     let convert tagmap x = {
-        info = x.Alpha.Lambda.info;
-        typ = x.Alpha.Lambda.typ;
-        name = x.Alpha.Lambda.name;
-        args = x.Alpha.Lambda.args;
-        body = Expr.convert tagmap x.Alpha.Lambda.body;
+        info = x.MatchReduce.Lambda.info;
+        typ = x.MatchReduce.Lambda.typ;
+        name = x.MatchReduce.Lambda.name;
+        args = x.MatchReduce.Lambda.args;
+        body = Expr.convert tagmap x.MatchReduce.Lambda.body;
     };;
 
 end and Expr : sig
@@ -56,10 +67,11 @@ end and Expr : sig
         | LetRec of (Lambda.t list) * t
         | If of t * t * t
         | AllocTuple of Common.Tag.t * (t list)
+        | ConstantConstructor of Common.Tag.t
         | GetField of int * t
-        | Case of (Common.VarType.t * Common.Var.t) * ((Common.Tag.t * t) list)
-        | Label of t * Common.Var.t * Common.VarType.t Common.Var.Map.t * t
-        | Goto of Common.Var.t * (t Common.Var.Map.t)
+        | IsConstantConstructor of t
+        | ConstantConstructorCase of t * ((Common.Tag.t * t) list)
+        | TupleConstructorCase of t * ((Common.Tag.t * t) list)
         | BinOp of t * Common.BinOp.t * t
         | UnOp of Common.UnOp.t * t
         | Apply of t * t
@@ -71,7 +83,13 @@ end and Expr : sig
         body: s;
     } with sexp;;
 
-    val convert : Common.Tag.t Common.Var.Map.t -> Alpha.Expr.t -> t;;
+    type tagmap_t = (Common.Tag.t * (Info.t -> Common.VarType.t -> Expr.t))
+                                                    Common.Var.Map.t
+    ;;
+
+    val do_convert : tagmap_t -> Common.Var.Set.t -> MatchReduce.Expr.t -> t;;
+
+    val convert : tagmap_t -> MatchReduce.Expr.t -> t;;
 
 end = struct
 
@@ -81,10 +99,11 @@ end = struct
         | LetRec of (Lambda.t list) * t
         | If of t * t * t
         | AllocTuple of Common.Tag.t * (t list)
+        | ConstantConstructor of Common.Tag.t
         | GetField of int * t
-        | Case of (Common.VarType.t * Common.Var.t) * ((Common.Tag.t * t) list)
-        | Label of t * Common.Var.t * Common.VarType.t Common.Var.Map.t * t
-        | Goto of Common.Var.t * (t Common.Var.Map.t)
+        | IsConstantConstructor of t
+        | ConstantConstructorCase of t * ((Common.Tag.t * t) list)
+        | TupleConstructorCase of t * ((Common.Tag.t * t) list)
         | BinOp of t * Common.BinOp.t * t
         | UnOp of Common.UnOp.t * t
         | Apply of t * t
@@ -97,95 +116,309 @@ end = struct
     } with sexp;;
 
 
-    let load_args info ty src body args =
+    type tagmap_t = (Common.Tag.t * (Info.t -> Common.VarType.t -> Expr.t))
+                                                    Common.Var.Map.t
+    ;;
+
+    let rec get_live_vars s x =
+        match x.MatchReduce.Expr.body with
+
+        | MatchReduce.Expr.Lambda(_, x)
+        | MatchReduce.Expr.UnOp(_, x)
+        -> get_live_vars s x
+
+        | MatchReduce.Expr.Let(_, x, y)
+        | MatchReduce.Expr.LetTuple(_, x, y)
+        | MatchReduce.Expr.BinOp(x, _, y)
+        | MatchReduce.Expr.Apply(x, y)
+        ->
+            let s = get_live_vars s x in
+            let s = get_live_vars s y in
+            s
+        | MatchReduce.Expr.LetRec(lambdas, x) ->
+            List.fold_left
+                (fun s t -> get_live_vars s t.MatchReduce.Lambda.body)
+                (get_live_vars s x)
+                lambdas
+
+        | MatchReduce.Expr.If(x, y, z) ->
+            let s = get_live_vars s x in
+            let s = get_live_vars s y in
+            let s = get_live_vars s z in
+            s
+
+        | MatchReduce.Expr.Case(x, ts) ->
+            List.fold_left
+                (fun s (_, _, t) -> get_live_vars s t)
+                (get_live_vars s x)
+                ts
+        | MatchReduce.Expr.Tuple(ts) ->
+            List.fold_left get_live_vars s ts
+        | MatchReduce.Expr.Var(v) -> Common.Var.Set.add v s
+        | MatchReduce.Expr.Const(_) -> s
+    ;;
+ 
+
+    let rec replace_var name replacement expr =
+        match expr.body with
+        | Lambda(args, x) ->
+            let x = replace_var name replacement x in
+            { expr with body = Lambda(args, x) }
+        | Let(arg, x, y) ->
+            let x = replace_var name replacement x in
+            let y = replace_var name replacement y in
+            { expr with body = Let(arg, x, y) }
+        | LetRec(lambdas, x) ->
+            let x = replace_var name replacement x in
+            let lambdas = List.map
+                            (fun l ->
+                                let body = replace_var name replacement
+                                                l.Lambda.body
+                                in
+                                { l with Lambda.body = body })
+                            lambdas
+            in
+            { expr with body = LetRec(lambdas, x) }
+        | If(x, y, z) ->
+            let x = replace_var name replacement x in
+            let y = replace_var name replacement y in
+            let z = replace_var name replacement z in
+            { expr with body = If(x, y, z) }
+        | AllocTuple(tag, xs) ->
+            let xs = List.map (replace_var name replacement) xs in
+            { expr with body = AllocTuple(tag, xs) }
+        | ConstantConstructor(_) -> expr
+        | GetField(i, x) ->
+            let x = replace_var name replacement x in
+            { expr with body = GetField(i, x) }
+        | IsConstantConstructor(x) ->
+            let x = replace_var name replacement x in
+            { expr with body = IsConstantConstructor(x) }
+        | ConstantConstructorCase(x, ds) ->
+            let x = replace_var name replacement x in
+            let ds = List.map
+                        (fun (tag, y) ->
+                            let y = replace_var name replacement y in
+                            tag, y)
+                        ds
+            in
+            { expr with body = ConstantConstructorCase(x, ds) }
+        | TupleConstructorCase(x, ds) ->
+            let x = replace_var name replacement x in
+            let ds = List.map
+                        (fun (tag, y) ->
+                            let y = replace_var name replacement y in
+                            tag, y)
+                        ds
+            in
+            { expr with body = TupleConstructorCase(x, ds) }
+        | BinOp(x, op, y) ->
+            let x = replace_var name replacement x in
+            let y = replace_var name replacement y in
+            { expr with body = BinOp(x, op, y) }
+        | UnOp(op, x) ->
+            let x = replace_var name replacement x in
+            { expr with body = UnOp(op, x) }
+        | Apply(x, y) ->
+            let x = replace_var name replacement x in
+            let y = replace_var name replacement y in
+            { expr with body = Apply(x, y) }
+        | Var(v) ->
+            if (Common.Var.compare v name) == 0 then
+                { expr with body = replacement.body }
+            else
+                expr
+        | Const(_) -> expr
+    ;;
+
+    let bind_args live_vars args src expr =
         Utils.fold_righti
-            (fun i (ty', v) z ->
-                match v with
-                | Some(n) ->
-                    {   info = info;
-                        typ = ty;
-                        body = Let((ty', v),
-                                    {   info = info;
-                                        typ = ty';
-                                        body = GetField(i, src) },
-                                    z) }
-                | None -> z)
+            (fun i (ty, n) y ->
+                match n with
+                | None -> y
+                | Some name ->
+                    if (Common.Var.Set.mem name live_vars) then
+                        { expr with body =
+                            Let((ty, n), 
+                                { src with typ = ty; body =
+                                    GetField(i, src) },
+                                expr) }
+                    else
+                        expr)
             args
-            body
+            expr
+    ;;
+
+    let hoist_var ?base x f =
+        match x.body with
+        | Var(_) -> f x
+        | Const(_) -> f x
+        | _ ->
+            let name = match base with
+                            | None -> Common.Var.generate ()
+                            | Some n -> Common.Var.derived n
+            in
+            let y = f { x with body = Var(name) }
+            in
+            { y with body = Let((x.typ, Some name), x, y) }
+    ;;
+            
+    let rec do_convert tagmap live_vars expr =
+        let info = expr.MatchReduce.Expr.info in
+        let typ = expr.MatchReduce.Expr.typ in
+
+        match expr.MatchReduce.Expr.body with
+        | MatchReduce.Expr.Lambda(args, x) ->
+            { info; typ; body = Lambda(args, do_convert tagmap live_vars x) }
+
+        | MatchReduce.Expr.Let(n, x, y) ->
+            let x = do_convert tagmap live_vars x in
+            let y = do_convert tagmap live_vars y in
+            { info; typ; body = Let(n, x, y) }
+
+        | MatchReduce.Expr.LetRec(lambdas, x) ->
+            let lambdas = List.map (Lambda.do_convert tagmap live_vars)
+                                        lambdas
+            in
+            let x = do_convert tagmap live_vars x in
+            { info; typ; body = LetRec(lambdas, x) }
+
+        | MatchReduce.Expr.If(x, y, z) ->
+            let x = do_convert tagmap live_vars x in
+            let y = do_convert tagmap live_vars y in
+            let z = do_convert tagmap live_vars z in
+            { info; typ; body = If(x, y, z) }
+
+        | MatchReduce.Expr.LetTuple(ns, x, y) ->
+            let x = do_convert tagmap live_vars x in
+            let y = do_convert tagmap live_vars y in
+            hoist_var x (fun x -> bind_args live_vars ns x y)
+
+        | MatchReduce.Expr.Case(x, defns) ->
+            let x = do_convert tagmap live_vars x in
+            hoist_var x
+                (fun x -> reduce_case tagmap live_vars info typ x defns)
+
+        | MatchReduce.Expr.Tuple(xs) ->
+            { info; typ;
+                body = AllocTuple(Common.Tag.of_int 0,
+                                List.map (do_convert tagmap live_vars) xs) }
+        | MatchReduce.Expr.BinOp(x, op, y) ->
+            let x = do_convert tagmap live_vars x in
+            let y = do_convert tagmap live_vars y in
+            { info; typ; body = BinOp(x, op, y) }
+        | MatchReduce.Expr.UnOp(op, x) ->
+            let x = do_convert tagmap live_vars x in
+            { info; typ; body = UnOp(op, x) }
+        | MatchReduce.Expr.Apply(x, y) ->
+            begin
+                let x = do_convert tagmap live_vars x in
+                let y = do_convert tagmap live_vars y in
+                (* As we've introduced a bunch of inlined lambda expressions,
+                 * most of which will be fully applied anyways, we do a
+                 * quick beta-reduction step here.
+                 *)
+                match x.body with
+                | Lambda([ (_, p) ], t) ->
+                    hoist_var ?base:p y
+                        (fun y ->
+                            match p with
+                            | Some name -> replace_var name y t
+                            | None -> t)
+                | Lambda((_, p) :: ps, t) ->
+                    hoist_var ?base:p y
+                        (fun y ->
+                            let t =
+                                match p with
+                                | Some name -> replace_var name y t
+                                | None -> t
+                            in
+                            let typ =
+                                match typ with
+                                | Type.Arrow(_, r) -> r
+                                | _ -> assert false
+                            in
+                            { info; typ; body = Lambda(ps, t) })
+                | _ -> { info; typ; body = Apply(x, y) }
+            end
+        | MatchReduce.Expr.Var(v) ->
+            begin
+                try
+                    (snd (Common.Var.Map.find v tagmap)) info typ
+                with
+                | Not_found -> { info; typ; body = Var(v) }
+            end
+        | MatchReduce.Expr.Const(c) ->
+            { info; typ; body = Const(c) }
+
+    and reduce_case tagmap live_vars info typ x defns =
+
+        let const_defns, tuple_defns =
+            let rec loop const_defns tuple_defns = function
+                | [] -> (List.rev const_defns), (List.rev tuple_defns)
+                | x :: xs ->
+                    match x with
+                    | (_, [], _) -> loop (x :: const_defns) tuple_defns xs
+                    | _ -> loop const_defns (x :: tuple_defns) xs
+            in
+            loop [] [] defns
+        in
+        let const_case =
+            match const_defns with
+            | [] -> None
+            | [ (_, _, y) ] ->
+                Some(do_convert tagmap live_vars y)
+            | _ ->
+                let defns =
+                    List.map
+                        (fun (name, _, y) ->
+                            let tag = fst (Common.Var.Map.find name tagmap) in
+                            tag, (do_convert tagmap live_vars y))
+                        const_defns
+                in
+                let defns = List.stable_sort
+                                (fun (x, _) (y, _) -> Common.Tag.compare x y)
+                                defns
+                in
+                Some({ info; typ; body = ConstantConstructorCase(x, defns) })
+        in
+        let tuple_case =
+            match tuple_defns with
+            | [] -> None
+            | [ (_, args, y) ] ->
+                let y = do_convert tagmap live_vars y in
+                Some(bind_args live_vars args x y)
+            | _ ->
+                    let defns =
+                        List.map
+                            (fun (name, args, y) ->
+                                let tag =
+                                    fst (Common.Var.Map.find name tagmap)
+                                in
+                                tag, bind_args live_vars args x
+                                        (do_convert tagmap live_vars y))
+                            defns
+                    in
+                    let defns = List.stable_sort
+                                    (fun (x, _) (y, _)
+                                                -> Common.Tag.compare x y)
+                                    defns
+                    in
+                    Some({ info; typ; body = TupleConstructorCase(x, defns) })
+        in
+        match const_case, tuple_case with
+        | None, None -> assert false
+        | Some a, None
+        | None, Some a -> a
+        | Some a, Some b -> 
+            { info; typ; body = If(
+                { info; typ =Type.Base(Type.Boolean);
+                    body = IsConstantConstructor(x) },
+                a, b) }
     ;;
 
     let rec convert tagmap x =
-        let info = x.Alpha.Expr.info in
-        let typ = x.Alpha.Expr.typ in
-
-        let body = match x.Alpha.Expr.body with
-            | Alpha.Expr.Lambda(args, x) ->
-                let x = convert tagmap x in
-                Lambda(args, x)
-            | Alpha.Expr.Let(arg, x, y) ->
-                let x = convert tagmap x in
-                let y = convert tagmap y in
-                Let(arg, x, y)
-            | Alpha.Expr.LetTuple(args, x, y) ->
-                let name = Common.Var.generate () in
-                let tuple_ty = Type.Tuple(List.map fst args) in
-                let var = { info = info;
-                            typ = tuple_ty;
-                            body = Var(name) }
-                in
-                Let((tuple_ty, Some name),
-                        (convert tagmap x),
-                        (load_args info typ var (convert tagmap y) args))
-            | Alpha.Expr.LetRec(fns, x) ->
-                let fns = List.map (Lambda.convert tagmap) fns in
-                let x = convert tagmap x in
-                LetRec(fns, x)
-            | Alpha.Expr.If(x, y, z) ->
-                let x = convert tagmap x in
-                let y = convert tagmap y in
-                let z = convert tagmap z in
-                If(x, y, z)
-            | Alpha.Expr.Match(x, bindings) ->
-                let name = Common.Var.generate () in
-                let var = { info = info;
-                            typ = x.Alpha.Expr.typ;
-                            body = Var(name) }
-                in
-                let compile_match (pat, x) =
-                    match pat.Alpha.Pattern.body with
-                    | Alpha.Pattern.Pattern(name, args) ->
-                        let tag = Common.Var.Map.find name tagmap in
-                        let x = convert tagmap x in
-                        tag, (load_args pat.Alpha.Pattern.info typ var x args)
-                in
-
-                Let((x.Alpha.Expr.typ, Some name), (convert tagmap x),
-                    {   info = info;
-                        typ = typ;
-                        body = Case((x.Alpha.Expr.typ, name),
-                                List.map compile_match bindings) })
-            | Alpha.Expr.Tuple(xs) ->
-                let xs = List.map (convert tagmap) xs in
-                AllocTuple((Common.Tag.of_int 0), xs)
-            | Alpha.Expr.BinOp(x, op, y) ->
-                let x = convert tagmap x in
-                let y = convert tagmap y in
-                BinOp(x, op, y)
-            | Alpha.Expr.UnOp(op, x) ->
-                let x = convert tagmap x in
-                UnOp(op, x)
-            | Alpha.Expr.Apply(x, y) ->
-                let x = convert tagmap x in
-                let y = convert tagmap y in
-                Apply(x, y)
-            | Alpha.Expr.Var(v) -> Var(v)
-            | Alpha.Expr.Const(c) -> Const(c)
-    in
-    {
-        info = info;
-        typ = typ;
-        body = body;
-    }
+        do_convert tagmap (get_live_vars Common.Var.Set.empty x) x
     ;;
 
 end;;
@@ -200,66 +433,63 @@ and t = {
 } with sexp;;
 
 let convert tagmap x =
-    let inner_convert info = function
-        | Alpha.Top(ty, v, x) ->
-            let x = Expr.convert tagmap x in
-            tagmap, [ Top(ty, v, x) ]
-        | Alpha.TopRec(fns) ->
-            let fns = List.map (Lambda.convert tagmap) fns in
-            tagmap, [ TopRec(fns) ]
-        | Alpha.Extern(name, xt) ->
-            tagmap, [ Extern(name, xt) ]
-        | Alpha.VariantDef(name, opts) ->
-            let tagmap =
-                Utils.fold_lefti
-                    (fun i tagmap (_, n, _) ->
-                        Common.Var.Map.add n (Common.Tag.of_int i) tagmap)
-                    tagmap
-                    opts
-            in
-            let rtype = Type.Named(name) in
-            let fns =
-                List.map
-                    (fun (info, n, tys) ->
+    let info = x.MatchReduce.info in
+    match x.MatchReduce.body with
+    | MatchReduce.Top(ty, v, x) ->
+        let x = Expr.convert tagmap x in
+        tagmap, [ { info; body = Top(ty, v, x) } ]
+    | MatchReduce.TopRec(fns) ->
+        let fns = List.map (Lambda.convert tagmap) fns in
+        tagmap, [ { info; body = TopRec(fns) } ]
+    | MatchReduce.Extern(name, xt) ->
+        tagmap, [ { info; body = Extern(name, xt) } ]
+    | MatchReduce.VariantDef(type_name, opts) ->
+        let tagmap =
+            let rec loop c t tagmap = function
+                | [] -> tagmap
+                | (_, n, []) :: xs ->
+                    let tag = Common.Tag.of_int c in
+                    let temp = Expr.ConstantConstructor tag in
+                    let f info ty = { Expr.info = info; Expr.typ = ty;
+                                        Expr.body = temp }
+                    in
+                    let tagmap = Common.Var.Map.add n (tag, f) tagmap in
+                    loop (c + 1) t tagmap xs
+                | (_, n, tys) :: xs ->
+                    let tag = Common.Tag.of_int t in
+                    let f info typ =
                         let names =
                             List.map (fun _ -> Common.Var.generate ()) tys
                         in
-                        let fn_type = Type.fn_type tys rtype in
-                        let args = List.map2 (fun ty n -> ty, Some n)
-                                                tys names
+                        let args = List.map2
+                            (fun name ty -> 
+                                { Expr.info = info; Expr.typ = ty;
+                                    Expr.body = Expr.Var(name) })
+                                names
+                                tys
                         in
-                        let tag = Common.Var.Map.find n tagmap in
-                        let body =
-                            {   Expr.info = info;
-                                Expr.typ = rtype;
-                                Expr.body =
-                                    Expr.AllocTuple(tag,
-                                        List.map2
-                                            (fun ty n -> {
-                                                Expr.info = info;
-                                                Expr.typ = ty;
-                                                Expr.body = Expr.Var(n) })
-                                            tys
-                                            names) }
+                        let params = List.map2 (fun ty name -> ty, Some name)
+                                        tys names
                         in
-                        Top(fn_type, Some n,
-                                {   Expr.info = info;
-                                    Expr.typ = fn_type;
-                                    Expr.body =
-                                        Expr.Lambda(args, body) }))
-                    opts
+                        { Expr.info = info; Expr.typ = typ;
+                            Expr.body = Expr.Lambda(params,
+                                { Expr.info = info;
+                                    Expr.typ = Type.Named(type_name);
+                                    Expr.body = Expr.AllocTuple(tag, args) })}
+                    in
+                    let tagmap = Common.Var.Map.add n (tag, f) tagmap in
+                    loop c (t + 1) tagmap xs
             in
-            tagmap, fns
-    in
-    let tagmap, bodies = inner_convert x.Alpha.info x.Alpha.body in
-    tagmap, List.map (fun b -> { info = x.Alpha.info; body = b }) bodies
+            loop 0 0 tagmap opts
+        in
+        tagmap, []
     ;;
 
-module C : IL.Conversion with type input = Alpha.t and type output = t =
+module C : IL.Conversion with type input = MatchReduce.t and type output = t =
 struct
-    type input = Alpha.t;;
+    type input = MatchReduce.t;;
     type output = t;;
-    type state = Common.Tag.t Common.Var.Map.t;;
+    type state = Expr.tagmap_t;;
     type check_state = unit;;
 
     let name = "case-reduce";;
@@ -280,5 +510,5 @@ struct
 end;;
 
 module Convert: IL.Converter with type output = t
-    = IL.Make(Alpha.Convert)(C);;
+    = IL.Make(MatchReduce.Convert)(C);;
 

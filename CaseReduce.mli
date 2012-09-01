@@ -34,10 +34,11 @@ end and Expr : sig
         | LetRec of (Lambda.t list) * t
         | If of t * t * t
         | AllocTuple of Common.Tag.t * (t list)
+        | ConstantConstructor of Common.Tag.t
         | GetField of int * t
-        | Case of (Common.VarType.t * Common.Var.t) * ((Common.Tag.t * t) list)
-        | Label of t * Common.Var.t * Common.VarType.t Common.Var.Map.t * t
-        | Goto of Common.Var.t * (t Common.Var.Map.t)
+        | IsConstantConstructor of t
+        | ConstantConstructorCase of t * ((Common.Tag.t * t) list)
+        | TupleConstructorCase of t * ((Common.Tag.t * t) list)
         | BinOp of t * Common.BinOp.t * t
         | UnOp of Common.UnOp.t * t
         | Apply of t * t

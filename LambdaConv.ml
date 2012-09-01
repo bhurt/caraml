@@ -79,8 +79,11 @@ end and Expr : sig
         | LetRec of (Lambda.t list) * t
         | If of t * t * t
         | AllocTuple of Common.Tag.t * (t list)
+        | ConstantConstructor of Common.Tag.t
         | GetField of int * t
-        | Case of (Common.VarType.t * Common.Var.t) * ((Common.Tag.t * t) list)
+        | IsConstantConstructor of t
+        | ConstantConstructorCase of t * ((Common.Tag.t * t) list)
+        | TupleConstructorCase of t * ((Common.Tag.t * t) list)
         | Label of t * Common.Var.t * Common.VarType.t Common.Var.Map.t * t
         | Goto of Common.Var.t * (t Common.Var.Map.t)
         | BinOp of t * Common.BinOp.t * t
@@ -106,8 +109,11 @@ end = struct
         | LetRec of (Lambda.t list) * t
         | If of t * t * t
         | AllocTuple of Common.Tag.t * (t list)
+        | ConstantConstructor of Common.Tag.t
         | GetField of int * t
-        | Case of (Common.VarType.t * Common.Var.t) * ((Common.Tag.t * t) list)
+        | IsConstantConstructor of t
+        | ConstantConstructorCase of t * ((Common.Tag.t * t) list)
+        | TupleConstructorCase of t * ((Common.Tag.t * t) list)
         | Label of t * Common.Var.t * Common.VarType.t Common.Var.Map.t * t
         | Goto of Common.Var.t * (t Common.Var.Map.t)
         | BinOp of t * Common.BinOp.t * t
@@ -173,22 +179,26 @@ end = struct
                 let xs = List.map convert xs in
                 AllocTuple(tag, xs)
 
+            | CaseReduce.Expr.ConstantConstructor(tag) ->
+                ConstantConstructor(tag)
+
             | CaseReduce.Expr.GetField(num, x) ->
                 let x = convert x in
                 GetField(num, x)
 
-            | CaseReduce.Expr.Case(n, opts) ->
-                let opts = List.map (fun (tag, x) -> tag, convert x) opts in
-                Case(n, opts)
-
-            | CaseReduce.Expr.Label(x, label, bindings, y) ->
+            | CaseReduce.Expr.IsConstantConstructor(x) ->
                 let x = convert x in
-                let y = convert y in
-                Label(x, label, bindings, y)
+                IsConstantConstructor(x)
 
-            | CaseReduce.Expr.Goto(label, bindings) ->
-                let bindings = Common.Var.Map.map convert bindings in
-                Goto(label, bindings)
+            | CaseReduce.Expr.ConstantConstructorCase(n, opts) ->
+                let opts = List.map (fun (tag, x) -> tag, convert x) opts in
+                let n = convert n in
+                ConstantConstructorCase(n, opts)
+
+            | CaseReduce.Expr.TupleConstructorCase(n, opts) ->
+                let opts = List.map (fun (tag, x) -> tag, convert x) opts in
+                let n = convert n in
+                TupleConstructorCase(n, opts)
 
             | CaseReduce.Expr.BinOp(x, op, y) ->
                 let x = convert x in

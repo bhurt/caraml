@@ -16,6 +16,8 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 *)
 
+open Sexplib.Conv;;
+
 module P : sig
 
     type typed_var = Common.Var.t * Common.VarType.t;;
@@ -275,7 +277,7 @@ end = struct
 end;;
 
 type constructors_t =
-    ((Common.Var.t * (Common.VarType.t list)) list) Common.Var.Map.t
+    (Common.VarType.t list) Common.Var.Map.t Common.Var.Map.t
 ;;
 
 module rec Lambda : sig
@@ -331,6 +333,8 @@ end and Expr : sig
         body: s;
     } with sexp;;
 
+    val convert : constructors_t -> Alpha.Expr.t -> t;;
+
 end = struct
 
     type s =
@@ -357,7 +361,7 @@ end = struct
             match expr.Alpha.Pattern.body with
             | Alpha.Pattern.Discard -> s
             | Alpha.Pattern.Variable(v) ->
-                Common.Var.Set.add v expr.Alpha.Pattern.match_type s
+                Common.Var.Map.add v expr.Alpha.Pattern.match_type s
             | Alpha.Pattern.Tuple(ps)
             | Alpha.Pattern.Constructor(_, ps) ->
                 List.fold_left loop s ps
@@ -365,13 +369,13 @@ end = struct
             | Alpha.Pattern.When(p, _) -> loop s p
             | Alpha.Pattern.With(p, ds) ->
                 List.fold_left
-                    (fun s (n, x) -> Common.Var.Map.add n x.Apha.Expr.typ s)
+                    (fun s (n, x) -> Common.Var.Map.add n x.Alpha.Expr.typ s)
                     (loop s p)
                     ds
             | Alpha.Pattern.As(p, v) ->
                 loop (Common.Var.Map.add v expr.Alpha.Pattern.match_type s) p
         in
-        loop Common.Var.Set.empty expr
+        loop Common.Var.Map.empty expr
     ;;
 
     let used_vars vars expr =
@@ -410,7 +414,7 @@ end = struct
             | Var(v) -> add s v expr.typ
             | Const(_) -> s
         in
-        loop Common.Var.Set.empty expr
+        loop Common.Var.Map.empty expr
     ;;
 
     let rec rename renames expr =
@@ -421,7 +425,9 @@ end = struct
             | LetRec(defns, x) ->
                 let defns =
                     List.map
-                        (fun l -> { l with body = rename renames l.body })
+                        (fun (l: Lambda.t) ->
+                            { l with Lambda.body =
+                                            rename renames l.Lambda.body })
                         defns
                 in
                 LetRec(defns, rename renames x)
@@ -465,7 +471,7 @@ end = struct
         { expr with body = body }
     ;;
 
-    let incomplete_pattern info patterns v =
+    let incomplete_pattern_match info patterns v =
         let f indent =
             Format.print_string "Incomplete pattern matching. ";
             Format.print_space ();
@@ -479,7 +485,7 @@ end = struct
         raise (Error.Compiler_error(f, info))
     ;;
 
-    let make_var expr (name, ty) = { expr with typ = t; body = Var(name) };;
+    let make_var expr (name, ty) = { expr with typ = ty; body = Var(name) };;
 
     let make_apply expr f x =
         let typ =
@@ -493,21 +499,22 @@ end = struct
     let rec compile_pattern expr = function
         | P.Undefined -> assert false
         | P.Apply(f, bindings) ->
-            (List.fold_left (fun f x -> make_apply f (make_var x))
-                (make_var f) bindings).body
+            (List.fold_left (fun f x -> make_apply expr f (make_var expr x))
+                (make_var expr f) bindings).body
         | P.LetTuple(args, v, p) ->
             let p = { expr with body = compile_pattern expr p } in
             let v = make_var expr v in
             let args = List.map (fun (n, t) -> (t, Some n)) args in
             LetTuple(args, v, p)
         | P.Case(m, defns) ->
-            let m = make_var m in
+            let m = make_var expr m in
             let defns =
                 List.map
                     (fun (tag, args, p) ->
-                        let p = compile_pattern expr p in
+                        let p = { expr with body = compile_pattern expr p } in
                         let args = List.map (fun (n, t) -> t, Some n) args in
                         (tag, args, p))
+                defns
             in
             Case(m, defns)
         | P.Test((f, t), args, p1, p2) ->
@@ -518,7 +525,7 @@ end = struct
                     [ { expr with typ = Type.Base Type.Unit;
                             body = Const Common.Const.Unit } ]
                 else
-                    List.map make_var args
+                    List.map (make_var expr) args
             in
             let f, t = List.fold_left
                             (fun (f, t) x ->
@@ -551,13 +558,13 @@ end = struct
     ;;
 
     let make_wrapper expr bound =
-        let used = used_vars bound y in
+        let used = used_vars bound expr in
         let apply_bindings = Common.Var.Map.bindings used in
         let fn_name = Common.Var.generate () in
         let fn_args =
             List.map
                 (fun (n, t) -> (Common.Var.derived n), t)
-                goto_bindings
+                apply_bindings
         in
         let f_type = Type.fn_type (List.map snd fn_args) expr.typ in
         let renames =
@@ -571,9 +578,9 @@ end = struct
         let fn_args = List.map (fun (n, ty) -> ty, Some n) fn_args in
         let wrapper =
             (fun y z ->
-                Let((f_type, fn_name), 
+                Let((f_type, Some fn_name), 
                     { y with typ = f_type;
-                        body = Lambda(fn_args, expr) } 
+                        body = Lambda(fn_args, expr) },
                     { y with body = z }))
         in
         wrapper, (fn_name, f_type), apply_bindings
@@ -605,14 +612,14 @@ end = struct
                         ps
                         ([], P.Undefined)
                 in
-                if (has_undefined_patterns pat) then
-                    incomplete_pattern_match expr.info
-                        (undefined_patterns pat)
+                if (P.has_undefined_patterns pat) then
+                    incomplete_pattern_match info (P.undefined_patterns pat)
+                        x_name
                 else
-                    List.fold_left (fun z f -> f expr z)
+                    (List.fold_left (fun z f -> f x z)
                         (Let((x.typ, Some(x_name)), x,
-                                (compile_pattern expr pat)))
-                        wrappers
+                            { x with body = (compile_pattern x pat) }))
+                        wrappers)
             | Alpha.Expr.Tuple(xs) ->
                 Tuple(List.map (convert constructors) xs)
             | Alpha.Expr.BinOp(x, op, y) ->
@@ -645,13 +652,13 @@ end = struct
         | Alpha.Pattern.Tuple(ts) ->
             let tvars = List.map
                 (fun t -> (Common.Var.generate ()),
-                            t.Alpha.Pattern.matched_type)
+                            t.Alpha.Pattern.match_type)
                 ts
             in
             let wrappers, base_pattern =
                 List.fold_right2
                     (fun t (n, ty) (wrappers, base) ->
-                        create_pattern wrappers constructors nty n base t)
+                        create_pattern wrappers constructors ty n base t)
                     ts
                     tvars
                     (wrappers, base_pattern)
@@ -659,7 +666,7 @@ end = struct
             wrappers, P.LetTuple(tvars, (x_name, x_typ), base_pattern)
         | Alpha.Pattern.Constructor(tag, ps) ->
             let type_def =
-                match p.Alpha.Pattern.matched_type with
+                match p.Alpha.Pattern.match_type with
                 | Type.Named(n) ->
                     begin
                         try
@@ -690,7 +697,7 @@ end = struct
                     type_def
                     (wrappers, [])
             in
-            wrappers, (Case((x_name, x_typ), cases))
+            wrappers, (P.Case((x_name, x_typ), cases))
 
         | Alpha.Pattern.Or(a, b) ->
             let wrappers, a = create_pattern wrappers constructors
@@ -715,11 +722,11 @@ end = struct
                 List.fold_right
                     (fun (v, y) (wrappers, base_pattern) ->
                         let y = convert constructors y in
-                        let wrapper, f, xs = make_wrapper expr bound in
+                        let wrapper, f, xs = make_wrapper y bound in
                         (wrapper :: wrappers),
                             (P.Let((v, y.typ), f, xs, base_pattern)))
                     defns
-                    base_pattern
+                    (wrappers, base_pattern)
             in
             create_pattern wrappers constructors x_typ x_name base_pattern p
 
@@ -730,5 +737,70 @@ end = struct
     ;;
 
 end;;
+
+type s =
+    | Top of Common.VarType.t * Common.Var.t option * Expr.t
+    | TopRec of (Lambda.t list)
+    | Extern of Common.Var.t * Common.Var.t Common.External.t
+    | VariantDef of Common.Var.t
+                * ((Info.t * Common.Var.t * (Common.VarType.t list)) list)
+and t = {
+    info: Info.t;
+    body: s;
+} with sexp;;
+
+let convert constructors top =
+    let info = top.Alpha.info in
+    let constructors, body =
+        match top.Alpha.body with
+        | Alpha.Top(ty, n, x) -> constructors,
+                                    (Top(ty, n, Expr.convert constructors x))
+        | Alpha.TopRec(lambdas) -> constructors,
+                                    (TopRec(
+                                        List.map (Lambda.convert constructors)
+                                            lambdas))
+        | Alpha.Extern(n, x) -> constructors, Extern(n, x)
+        | Alpha.VariantDef(n, defns) ->
+            Common.Var.Map.add n
+                (List.fold_left
+                    (fun m (_, tag, vals) ->
+                        Common.Var.Map.add tag vals m)
+                    Common.Var.Map.empty
+                    defns)
+                constructors,
+            VariantDef(n, defns)
+    in
+    constructors, { info; body }
+;;
+
+module C : IL.Conversion with type input = Alpha.t and type output = t
+= struct
+    type input = Alpha.t;;
+    type output = t;;
+    type state = constructors_t;;
+    type check_state = unit;;
+
+    let name = "match-reduce";;
+    let sexp_of_output x = sexp_of_t x;;
+
+    let dump_flag = ref false;;
+    let check_flag = ref false;;
+
+    let init_state () = Common.Var.Map.empty;;
+    let convert state input =
+        let state, output = convert state input in
+        state, [ output ]
+    ;;
+    let fini_state _ = ();;
+
+    let init_check_state _ = ();;
+    let check _ _ = (), true;;
+    let get_info _ = assert false;;
+    let fini_check_state _ = ();;
+
+end;;
+
+module Convert : IL.Converter with type output = t
+        = IL.Make(Alpha.Convert)(C);;
 
 

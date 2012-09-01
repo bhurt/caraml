@@ -32,6 +32,7 @@ MLFILES = \
     Lexer.ml \
     Annot.ml \
     Alpha.ml \
+    MatchReduce.ml \
     CaseReduce.ml \
     LambdaConv.ml \
     FreeBind.ml \

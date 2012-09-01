@@ -216,5 +216,14 @@ module Tag = struct
     let of_int (i : int) : t = i;;
     let to_int (i : t) : int = i;;
 
+    let compare (x : t) (y : t) =
+        if (x < y) then
+            -1
+        else if (x > y) then
+            1
+        else
+            0
+    ;;
+
 end;;
 

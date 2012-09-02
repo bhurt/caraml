@@ -22,8 +22,11 @@ module InnerExpr : sig
         | Let of Common.Arg.t * t * t
         | If of t * t * t
         | AllocTuple of Common.Tag.t * (Common.VarType.t * Common.Var.t) list
+        | ConstantConstructor of Common.Tag.t
         | GetField of int * (Common.VarType.t * Common.Var.t)
-        | Case of (Common.VarType.t * Common.Var.t) * ((Common.Tag.t * t) list)
+        | IsConstantConstructor of t
+        | ConstantConstructorCase of (Common.VarType.t * Common.Var.t) * ((Common.Tag.t * t) list)
+        | TupleConstructorCase of (Common.VarType.t * Common.Var.t) * ((Common.Tag.t * t) list)
         | Label of t * Common.Var.t * Common.VarType.t Common.Var.Map.t * t
         | Goto of Common.Var.t
                     * ((Common.VarType.t * Common.Var.t) Common.Var.Map.t)
@@ -55,7 +58,8 @@ module TailExpr : sig
         | Return of InnerExpr.t
         | Let of Common.Arg.t * InnerExpr.t * t
         | If of InnerExpr.t * t * t
-        | Case of (Common.VarType.t * Common.Var.t) * ((Common.Tag.t * t) list)
+        | ConstantConstructorCase of (Common.VarType.t * Common.Var.t) * ((Common.Tag.t * t) list)
+        | TupleConstructorCase of (Common.VarType.t * Common.Var.t) * ((Common.Tag.t * t) list)
         | Label of t * Common.Var.t * Common.VarType.t Common.Var.Map.t * t
         | Goto of Common.Var.t
                     * ((Common.VarType.t * Common.Var.t) Common.Var.Map.t)

@@ -105,7 +105,15 @@ end = struct
 
 end and Pattern : sig
 
-    type s = Pattern of Common.Var.t * (Common.Arg.t list)
+    type s =
+        | Discard
+        | Variable of Common.Var.t
+        | Tuple of (t list)
+        | Constructor of Common.Var.t * (t list)
+        | Or of t * t
+        | When of t * Expr.t
+        | With of t * ((Common.Var.t * Expr.t) list)
+        | As of t * Common.Var.t
     and t = {
         info: Info.t;
         match_type: Common.VarType.t;
@@ -118,7 +126,15 @@ end and Pattern : sig
 
 end = struct
 
-    type s = Pattern of Common.Var.t * (Common.Arg.t list)
+    type s =
+        | Discard
+        | Variable of Common.Var.t
+        | Tuple of (t list)
+        | Constructor of Common.Var.t * (t list)
+        | Or of t * t
+        | When of t * Expr.t
+        | With of t * ((Common.Var.t * Expr.t) list)
+        | As of t * Common.Var.t
     and t = {
         info: Info.t;
         match_type: Common.VarType.t;
@@ -126,25 +142,70 @@ end = struct
     } with sexp;;
 
     let convert names pat =
-        let names', body = match pat.Annot.Pattern.body with
-            | Annot.Pattern.Pattern(name, args) ->
-                let name = StringMap.find name names in
-                let names = List.fold_left rename_arg names args in
-                let args = List.map (map_arg names) args in
-                names, Pattern(name, args)
+        let new_names =
+            List.fold_left
+                (fun names var ->
+                    let v = Common.Var.of_string var in
+                    StringMap.add var v names)
+                names
+                (Annot.StringSet.elements
+                        (Annot.Pattern.defined_vars pat))
         in
-        names',
-        {   info = pat.Annot.Pattern.info;
-            match_type = convert_type names pat.Annot.Pattern.match_type;
-            body = body }
-    ;;
+        let rec loop curr_names x =
+            let info = x.Annot.Pattern.info in
+            let match_type = convert_type names x.Annot.Pattern.match_type in
+            let curr_names, body =
+                match x.Annot.Pattern.body with
+                | Annot.Pattern.Discard -> curr_names, Discard
+                | Annot.Pattern.Variable(var) ->
+                    let v = StringMap.find var new_names in
+                    (StringMap.add var v curr_names), Variable(v)
+                | Annot.Pattern.Tuple(xs) ->
+                    let curr_names, xs = Utils.map_accum loop curr_names xs in
+                    curr_names, Tuple(xs)
+                | Annot.Pattern.Constructor(var, xs) ->
+                    let curr_names, xs = Utils.map_accum loop curr_names xs in
+                    let v = StringMap.find var new_names in
+                    curr_names, Constructor(v, xs)
+                | Annot.Pattern.Or(x, y) -> 
+                    let _, x = loop curr_names x in
+                    let curr_names, y = loop curr_names y in
+                    curr_names, Or(x, y)
+                | Annot.Pattern.When(x, y) ->
+                    let curr_names, x = loop curr_names x in
+                    let y = Expr.convert curr_names y in
+                    curr_names, When(x, y)
+                | Annot.Pattern.With(pat, ds) ->
+                    let curr_names, pat = loop curr_names pat in
+                    let curr_names, ds =
+                        Utils.map_accum
+                            (fun curr_names (var, expr) ->
+                                let v = StringMap.find var new_names in
+                                let expr = Expr.convert curr_names expr in
+                                let curr_names =
+                                    StringMap.add var v curr_names
+                                in
+                                curr_names, (v, expr))
+                            curr_names
+                            ds
+                    in
+                    curr_names, With(pat, ds)
+                | Annot.Pattern.As(pat, var) ->
+                    let curr_names, pat = loop curr_names pat in
+                    let v = StringMap.find var new_names in
+                    let curr_names = StringMap.add var v curr_names in
+                    curr_names, As(pat, v)
+            in
+            curr_names, { info; match_type; body }
+        in
+        loop names pat
+        ;;
 
 end and Expr : sig
 
     type s =
         | Lambda of Common.Arg.t list * t
         | Let of Common.Arg.t * t * t
-        | LetTuple of Common.Arg.t list * t * t
         | LetRec of (Lambda.t list) * t
         | If of t * t * t
         | Match of t * ((Pattern.t * t) list)
@@ -167,7 +228,6 @@ end = struct
     type s =
         | Lambda of Common.Arg.t list * t
         | Let of Common.Arg.t * t * t
-        | LetTuple of Common.Arg.t list * t * t
         | LetRec of (Lambda.t list) * t
         | If of t * t * t
         | Match of t * ((Pattern.t * t) list)
@@ -198,13 +258,6 @@ end = struct
                 let arg = map_arg names arg in
                 let y = convert names y in
                 Let(arg, x, y)
-    
-            | Annot.Expr.LetTuple(args, x, y) ->
-                let x = convert names x in
-                let names = List.fold_left rename_arg names args in
-                let args = List.map (map_arg names) args in
-                let y = convert names y in
-                LetTuple(args, x, y)
     
             | Annot.Expr.LetRec(fns, x) ->
                 let names, fns = Lambda.convert names fns in

@@ -36,3 +36,7 @@ val fold_right2i : ?start:int -> ?step:int
                     -> 'b list -> 'c -> 'c;;
 val freduce : ('a -> 'a) list -> 'a -> 'a;;
 val map_accum : ('a -> 'b -> 'a * 'c) -> 'a -> ('b list) -> ('a * ('c list));;
+val map2_accum : ('a -> 'b -> 'c -> 'a * 'd) -> 'a -> ('b list) -> ('c list) -> ('a * ('d list));;
+
+val mapcat : ('a -> 'b list) -> 'a list -> 'b list;;
+

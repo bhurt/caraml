@@ -26,8 +26,11 @@ module InnerExpr = struct
         | Let of Common.Arg.t * t * t
         | If of t * t * t
         | AllocTuple of Common.Tag.t * (Common.VarType.t * Common.Var.t) list
+        | ConstantConstructor of Common.Tag.t
         | GetField of int * (Common.VarType.t * Common.Var.t)
-        | Case of (Common.VarType.t * Common.Var.t) * ((Common.Tag.t * t) list)
+        | IsConstantConstructor of t
+        | ConstantConstructorCase of (Common.VarType.t * Common.Var.t) * ((Common.Tag.t * t) list)
+        | TupleConstructorCase of (Common.VarType.t * Common.Var.t) * ((Common.Tag.t * t) list)
         | Label of t * Common.Var.t * Common.VarType.t Common.Var.Map.t * t
         | Goto of Common.Var.t
                     * ((Common.VarType.t * Common.Var.t) Common.Var.Map.t)
@@ -65,14 +68,25 @@ module InnerExpr = struct
                 If(x, y, z)
             | Simplify.Expr.AllocTuple(tag, xs)
                 -> AllocTuple(tag, xs)
+            | Simplify.Expr.ConstantConstructor(tag)
+                -> ConstantConstructor(tag)
             | Simplify.Expr.GetField(n, v)
                 -> GetField(n, v)
-            | Simplify.Expr.Case(n, opts)
+            | Simplify.Expr.IsConstantConstructor(x) ->
+                let x = convert globals x in
+                IsConstantConstructor(x)
+            | Simplify.Expr.ConstantConstructorCase(n, opts)
                 -> let opts =
                         List.map
                             (fun (tag, x) -> tag, (convert globals x)) opts
                     in
-                    Case(n, opts)
+                    ConstantConstructorCase(n, opts)
+            | Simplify.Expr.TupleConstructorCase(n, opts)
+                -> let opts =
+                        List.map
+                            (fun (tag, x) -> tag, (convert globals x)) opts
+                    in
+                    TupleConstructorCase(n, opts)
             | Simplify.Expr.Label(x, label, bindings, y) ->
                 let x = convert globals x in
                 let y = convert globals y in
@@ -136,7 +150,8 @@ module TailExpr = struct
         | Return of InnerExpr.t
         | Let of Common.Arg.t * InnerExpr.t * t
         | If of InnerExpr.t * t * t
-        | Case of (Common.VarType.t * Common.Var.t) * ((Common.Tag.t * t) list)
+        | ConstantConstructorCase of (Common.VarType.t * Common.Var.t) * ((Common.Tag.t * t) list)
+        | TupleConstructorCase of (Common.VarType.t * Common.Var.t) * ((Common.Tag.t * t) list)
         | Label of t * Common.Var.t * Common.VarType.t Common.Var.Map.t * t
         | Goto of Common.Var.t
                     * ((Common.VarType.t * Common.Var.t) Common.Var.Map.t)
@@ -159,9 +174,12 @@ module TailExpr = struct
                 Let(v, x, return y)
             | InnerExpr.If(x, y, z) ->
                 If(x, return y, return z)
-            | InnerExpr.Case(n, opts) ->
+            | InnerExpr.ConstantConstructorCase(n, opts) ->
                 let opts = List.map (fun (tag, x) -> tag, return x) opts in
-                Case(n, opts)
+                ConstantConstructorCase(n, opts)
+            | InnerExpr.TupleConstructorCase(n, opts) ->
+                let opts = List.map (fun (tag, x) -> tag, return x) opts in
+                TupleConstructorCase(n, opts)
             | InnerExpr.Label(x, label, bindings, y) ->
                 Label((return x), label, bindings, (return y))
             | InnerExpr.Goto(label, bindings) ->

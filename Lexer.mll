@@ -25,6 +25,7 @@ let keywords : Parser.token StringMap.t =
         (fun m (k,v) -> StringMap.add k v m)
         StringMap.empty
         [   "and", Parser.AND;
+            "as", Parser.AS;
             "boolean", Parser.BOOLEAN;
             "bool", Parser.BOOLEAN;
             "else", Parser.ELSE;
@@ -45,6 +46,7 @@ let keywords : Parser.token StringMap.t =
             "true", Parser.BOOLEAN_VAL(true);
             "type", Parser.TYPE;
             "unit", Parser.UNIT;
+            "when", Parser.WHEN;
             "with", Parser.WITH;
             "_", Parser.DISCARD ]
 ;;
@@ -79,7 +81,8 @@ rule token = parse
             Parser.INT_VAL (int_of_string (Lexing.lexeme lexbuf))
         } 
 
-    | (uppercase | lowercase) identchar* { keyword lexbuf }
+    | lowercase identchar* { keyword lexbuf }
+    | uppercase identchar* { Parser.CVAR(Lexing.lexeme lexbuf) }
     | "#" [^ '\010' '\013' ]* newline { token lexbuf }
     | "&&" { Parser.BOOL_AND }
     | "->" { Parser.ARROW }

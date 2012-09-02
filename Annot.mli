@@ -23,14 +23,26 @@ end;;
 
 type type_t = CheckedString.t Type.t with sexp;;
 
+module StringSet : Set.S with type elt = string;;
+
 module rec Pattern : sig
 
-    type s = Pattern of string * ((type_t * string option) list)
+    type s =
+        | Discard
+        | Variable of string
+        | Tuple of (t list)
+        | Constructor of string * (t list)
+        | Or of t * t
+        | When of t * Expr.t
+        | With of t * ((string * Expr.t) list)
+        | As of t * string
     and t = {
         info: Info.t;
         match_type : type_t;
         body: s
     } with sexp;;
+
+    val defined_vars : t -> StringSet.t;;
 
 end and Arg : sig
 
@@ -51,7 +63,6 @@ end and Expr : sig
     type s =
         | Lambda of Arg.t list * t
         | Let of Arg.t * t * t
-        | LetTuple of Arg.t list * t * t
         | LetRec of (Lambda.t list) * t
         | If of t * t * t
         | Match of t * ((Pattern.t * t) list)

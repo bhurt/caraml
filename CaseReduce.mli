@@ -22,18 +22,15 @@ module rec Lambda : sig
         info: Info.t;
         typ: Common.VarType.t;
         name: Common.Var.t;
-        args: Common.Arg.t list;
+        args: (Common.Arg.t list);
         body: Expr.t;
     } with sexp;;
-
-    val make : Info.t -> Common.VarType.t -> Common.Var.t
-                -> Common.Arg.t list -> Expr.t -> t;;
 
 end and Expr : sig
 
     type s =
+        | Lambda of Common.Arg.t list * t
         | Let of Common.Arg.t * t * t
-        | LetFn of Lambda.t * t
         | LetRec of (Lambda.t list) * t
         | If of t * t * t
         | AllocTuple of Common.Tag.t * (t list)
@@ -42,8 +39,6 @@ end and Expr : sig
         | IsConstantConstructor of t
         | ConstantConstructorCase of t * ((Common.Tag.t * t) list)
         | TupleConstructorCase of t * ((Common.Tag.t * t) list)
-        | Label of t * Common.Var.t * Common.VarType.t Common.Var.Map.t * t
-        | Goto of Common.Var.t * (t Common.Var.Map.t)
         | BinOp of t * Common.BinOp.t * t
         | UnOp of Common.UnOp.t * t
         | Apply of t * t
@@ -55,17 +50,14 @@ end and Expr : sig
         body: s;
     } with sexp;;
 
-    val make : Info.t -> Common.VarType.t -> s -> t;;
-
 end;;
 
 type s =
     | Top of Common.VarType.t * Common.Var.t option * Expr.t
-    | TopFn of Common.VarType.t * Lambda.t
     | TopRec of (Lambda.t list)
     | Extern of Common.Var.t * Common.Var.t Common.External.t
 and t = {
-    info : Info.t;
+    info: Info.t;
     body: s;
 } with sexp;;
 

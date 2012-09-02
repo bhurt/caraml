@@ -33,6 +33,7 @@ MLFILES = \
     Annot.ml \
     Alpha.ml \
     MatchReduce.ml \
+    CaseReduce.ml \
     LambdaConv.ml \
     FreeBind.ml \
     LambdaLift.ml \
@@ -124,7 +125,7 @@ endif
 
 Parser.ml Parser.mli: Parser.mly
 ifndef VERBOSE
-	echo Generating $<
+	echo Generating $@
 endif
 	$(OCAMLYACC) -v $<
 

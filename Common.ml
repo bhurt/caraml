@@ -54,6 +54,10 @@ module Var = struct
         String.sub s 0 (String.index s '.')
     ;;
 
+    let derived s = of_string (orig_name s);;
+
+    let compare x y = String.compare x y;;
+
     module Map = struct
         include XMap;;
 
@@ -211,6 +215,15 @@ module Tag = struct
 
     let of_int (i : int) : t = i;;
     let to_int (i : t) : int = i;;
+
+    let compare (x : t) (y : t) =
+        if (x < y) then
+            -1
+        else if (x > y) then
+            1
+        else
+            0
+    ;;
 
 end;;
 

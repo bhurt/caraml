@@ -25,6 +25,8 @@ module Var : sig
     val orig_name : t -> string;;
 
     val generate : unit -> t;;
+    val derived : t -> t;;
+    val compare : t -> t -> int;;
 
     module Map : sig
         include Map.S with type key = t;;
@@ -134,6 +136,7 @@ module Tag : sig
 
     val of_int : int -> t;;
     val to_int : t -> int;;
+    val compare : t -> t -> int;;
 
 end;;
 

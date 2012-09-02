@@ -22,7 +22,7 @@ module rec Lambda : sig
         info: Info.t;
         typ: Common.VarType.t;
         name: Common.Var.t;
-        args: (Common.Arg.t list);
+        args: Common.Arg.t list;
         body: Expr.t;
     } with sexp;;
 
@@ -33,18 +33,16 @@ end and Expr : sig
         | Let of Common.Arg.t * t * t
         | LetRec of (Lambda.t list) * t
         | If of t * t * t
-        | AllocTuple of Common.Tag.t * (t list)
-        | GetField of int * t
-        | Case of (Common.VarType.t * Common.Var.t) * ((Common.Tag.t * t) list)
-        | Label of t * Common.Var.t * Common.VarType.t Common.Var.Map.t * t
-        | Goto of Common.Var.t * (t Common.Var.Map.t)
+        | LetTuple of Common.Arg.t list * t * t
+        | Case of t * ((Common.Var.t * (Common.Arg.t list) * t) list)
+        | Tuple of t list
         | BinOp of t * Common.BinOp.t * t
         | UnOp of Common.UnOp.t * t
         | Apply of t * t
         | Var of Common.Var.t
         | Const of Common.Const.t
     and t = {
-        info : Info.t;
+        info: Info.t;
         typ: Common.VarType.t;
         body: s;
     } with sexp;;
@@ -55,10 +53,12 @@ type s =
     | Top of Common.VarType.t * Common.Var.t option * Expr.t
     | TopRec of (Lambda.t list)
     | Extern of Common.Var.t * Common.Var.t Common.External.t
+    | VariantDef of Common.Var.t
+                * ((Info.t * Common.Var.t * (Common.VarType.t list)) list)
 and t = {
     info: Info.t;
     body: s;
 } with sexp;;
 
-module Convert : IL.Converter with type output = t;;
+module Convert: IL.Converter with type output = t;;
 

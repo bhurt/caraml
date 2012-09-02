@@ -19,8 +19,8 @@
 open Sexplib.Conv;;
 
 let rec flatten_lambdas args body = 
-    match body.MatchReduce.Expr.body with
-    | MatchReduce.Expr.Lambda(args2, y) ->
+    match body.CaseReduce.Expr.body with
+    | CaseReduce.Expr.Lambda(args2, y) ->
         flatten_lambdas (List.append args args2) y
     | _ -> args, body
 ;;
@@ -38,7 +38,7 @@ module rec Lambda: sig
     val make : Info.t -> Common.VarType.t -> Common.Var.t
                     -> Common.Arg.t list -> Expr.t -> t;;
 
-    val convert : MatchReduce.Lambda.t -> t;;
+    val convert : CaseReduce.Lambda.t -> t;;
 
 end = struct
 
@@ -60,13 +60,13 @@ end = struct
 
 
     let convert lambda =
-        let args, x = flatten_lambdas lambda.MatchReduce.Lambda.args
-                                        lambda.MatchReduce.Lambda.body
+        let args, x = flatten_lambdas lambda.CaseReduce.Lambda.args
+                                        lambda.CaseReduce.Lambda.body
         in
         let x = Expr.convert x in
-        make lambda.MatchReduce.Lambda.info
-                lambda.MatchReduce.Lambda.typ
-                lambda.MatchReduce.Lambda.name
+        make lambda.CaseReduce.Lambda.info
+                lambda.CaseReduce.Lambda.typ
+                lambda.CaseReduce.Lambda.name
                 args
                 x
     ;;
@@ -79,8 +79,11 @@ end and Expr : sig
         | LetRec of (Lambda.t list) * t
         | If of t * t * t
         | AllocTuple of Common.Tag.t * (t list)
+        | ConstantConstructor of Common.Tag.t
         | GetField of int * t
-        | Case of (Common.VarType.t * Common.Var.t) * ((Common.Tag.t * t) list)
+        | IsConstantConstructor of t
+        | ConstantConstructorCase of t * ((Common.Tag.t * t) list)
+        | TupleConstructorCase of t * ((Common.Tag.t * t) list)
         | Label of t * Common.Var.t * Common.VarType.t Common.Var.Map.t * t
         | Goto of Common.Var.t * (t Common.Var.Map.t)
         | BinOp of t * Common.BinOp.t * t
@@ -96,7 +99,7 @@ end and Expr : sig
 
     val make : Info.t -> Common.VarType.t -> s -> t;;
 
-    val convert : MatchReduce.Expr.t -> t;;
+    val convert : CaseReduce.Expr.t -> t;;
 
 end = struct
 
@@ -106,8 +109,11 @@ end = struct
         | LetRec of (Lambda.t list) * t
         | If of t * t * t
         | AllocTuple of Common.Tag.t * (t list)
+        | ConstantConstructor of Common.Tag.t
         | GetField of int * t
-        | Case of (Common.VarType.t * Common.Var.t) * ((Common.Tag.t * t) list)
+        | IsConstantConstructor of t
+        | ConstantConstructorCase of t * ((Common.Tag.t * t) list)
+        | TupleConstructorCase of t * ((Common.Tag.t * t) list)
         | Label of t * Common.Var.t * Common.VarType.t Common.Var.Map.t * t
         | Goto of Common.Var.t * (t Common.Var.Map.t)
         | BinOp of t * Common.BinOp.t * t
@@ -129,81 +135,85 @@ end = struct
     };;
 
     let rec convert expr =
-        let info = expr.MatchReduce.Expr.info in
-        let ty = expr.MatchReduce.Expr.typ in
-        let body = match expr.MatchReduce.Expr.body with
-            | MatchReduce.Expr.Lambda(args, x) ->
+        let info = expr.CaseReduce.Expr.info in
+        let ty = expr.CaseReduce.Expr.typ in
+        let body = match expr.CaseReduce.Expr.body with
+            | CaseReduce.Expr.Lambda(args, x) ->
                 let args, y = flatten_lambdas args x in
                 let name = Common.Var.generate () in
                 let y = convert y in
                 LetFn((Lambda.make info ty name args y),
                         make info ty (Var(name)))
 
-            | MatchReduce.Expr.Let((v_typ, Some name) as n, x, y) ->
+            | CaseReduce.Expr.Let((v_typ, Some name) as n, x, y) ->
                 begin
                     let y = convert y in
-                    match x.MatchReduce.Expr.body with
-                    | MatchReduce.Expr.Lambda(args, z) ->
+                    match x.CaseReduce.Expr.body with
+                    | CaseReduce.Expr.Lambda(args, z) ->
                         let args, z = flatten_lambdas args z in
                         let z = convert z in
-                        LetFn((Lambda.make x.MatchReduce.Expr.info
+                        LetFn((Lambda.make x.CaseReduce.Expr.info
                                     v_typ name args z), y)
                     | _ ->
                         let x = convert x in
                         Let(n, x, y)
                 end
 
-            | MatchReduce.Expr.Let(n, x, y) ->
+            | CaseReduce.Expr.Let(n, x, y) ->
                 let x = convert x in
                 let y = convert y in
                 Let(n, x, y)
                 
-            | MatchReduce.Expr.LetRec(fns, x) ->
+            | CaseReduce.Expr.LetRec(fns, x) ->
                 let fns = List.map Lambda.convert fns in
                 let x = convert x in
                 LetRec(fns, x)
 
-            | MatchReduce.Expr.If(x, y, z) ->
+            | CaseReduce.Expr.If(x, y, z) ->
                 let x = convert x in
                 let y = convert y in
                 let z = convert z in
                 If(x, y, z)
 
-            | MatchReduce.Expr.AllocTuple(tag, xs) ->
+            | CaseReduce.Expr.AllocTuple(tag, xs) ->
                 let xs = List.map convert xs in
                 AllocTuple(tag, xs)
 
-            | MatchReduce.Expr.GetField(num, x) ->
+            | CaseReduce.Expr.ConstantConstructor(tag) ->
+                ConstantConstructor(tag)
+
+            | CaseReduce.Expr.GetField(num, x) ->
                 let x = convert x in
                 GetField(num, x)
 
-            | MatchReduce.Expr.Case(n, opts) ->
-                let opts = List.map (fun (tag, x) -> tag, convert x) opts in
-                Case(n, opts)
-
-            | MatchReduce.Expr.Label(x, label, bindings, y) ->
+            | CaseReduce.Expr.IsConstantConstructor(x) ->
                 let x = convert x in
-                let y = convert y in
-                Label(x, label, bindings, y)
+                IsConstantConstructor(x)
 
-            | MatchReduce.Expr.Goto(label, bindings) ->
-                let bindings = Common.Var.Map.map convert bindings in
-                Goto(label, bindings)
+            | CaseReduce.Expr.ConstantConstructorCase(n, opts) ->
+                let opts = List.map (fun (tag, x) -> tag, convert x) opts in
+                let n = convert n in
+                ConstantConstructorCase(n, opts)
 
-            | MatchReduce.Expr.BinOp(x, op, y) ->
+            | CaseReduce.Expr.TupleConstructorCase(n, opts) ->
+                let opts = List.map (fun (tag, x) -> tag, convert x) opts in
+                let n = convert n in
+                TupleConstructorCase(n, opts)
+
+            | CaseReduce.Expr.BinOp(x, op, y) ->
                 let x = convert x in
                 let y = convert y in
                 BinOp(x, op, y)
-            | MatchReduce.Expr.UnOp(op, x) ->
+            | CaseReduce.Expr.UnOp(op, x) ->
                 let x = convert x in
                 UnOp(op, x)
-            | MatchReduce.Expr.Apply(x, y) ->
+            | CaseReduce.Expr.Apply(x, y) ->
                 let x = convert x in
                 let y = convert y in
                 Apply(x, y)
-            | MatchReduce.Expr.Var(v) ->
+            | CaseReduce.Expr.Var(v) ->
                 Var(v)
-            | MatchReduce.Expr.Const(c) ->
+            | CaseReduce.Expr.Const(c) ->
                 Const(c)
         in
         {   info = info;
@@ -225,12 +235,12 @@ and t = {
 } with sexp;;
 
 let convert top = 
-    let info = top.MatchReduce.info in
-    let body = match top.MatchReduce.body with
-        | MatchReduce.Top(ty, name, x) ->
+    let info = top.CaseReduce.info in
+    let body = match top.CaseReduce.body with
+        | CaseReduce.Top(ty, name, x) ->
             begin
-                match x.MatchReduce.Expr.body with
-                | MatchReduce.Expr.Lambda(args, body) ->
+                match x.CaseReduce.Expr.body with
+                | CaseReduce.Expr.Lambda(args, body) ->
                     let args, body = flatten_lambdas args body  in
                     let body = Expr.convert body in
                     let name = match name with
@@ -242,10 +252,10 @@ let convert top =
                     let x = Expr.convert x in
                     Top(ty, name, x)
             end
-        | MatchReduce.TopRec(fns) ->
+        | CaseReduce.TopRec(fns) ->
             let fns = List.map Lambda.convert fns in
             TopRec(fns)
-        | MatchReduce.Extern(name, xtrn) -> Extern(name, xtrn)
+        | CaseReduce.Extern(name, xtrn) -> Extern(name, xtrn)
     in {
         info = info;
         body = body;
@@ -253,9 +263,9 @@ let convert top =
 ;;
 
 
-module C : IL.Conversion with type input = MatchReduce.t and type output = t =
+module C : IL.Conversion with type input = CaseReduce.t and type output = t =
 struct
-    type input = MatchReduce.t;;
+    type input = CaseReduce.t;;
     type output = t;;
     type state = unit;;
     type check_state = unit;;
@@ -278,5 +288,5 @@ struct
 end;;
 
 module Convert : IL.Converter with type output = t =
-    IL.Make(MatchReduce.Convert)(C);;
+    IL.Make(CaseReduce.Convert)(C);;
 

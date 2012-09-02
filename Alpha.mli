@@ -28,7 +28,15 @@ module rec Lambda : sig
 
 end and Pattern : sig
 
-    type s = Pattern of Common.Var.t * (Common.Arg.t list)
+    type s =
+        | Discard
+        | Variable of Common.Var.t
+        | Tuple of (t list)
+        | Constructor of Common.Var.t * (t list)
+        | Or of t * t
+        | When of t * Expr.t
+        | With of t * ((Common.Var.t * Expr.t) list)
+        | As of t * Common.Var.t
     and t = {
         info: Info.t;
         match_type: Common.VarType.t;
@@ -40,7 +48,6 @@ end and Expr : sig
     type s =
         | Lambda of Common.Arg.t list * t
         | Let of Common.Arg.t * t * t
-        | LetTuple of Common.Arg.t list * t * t
         | LetRec of (Lambda.t list) * t
         | If of t * t * t
         | Match of t * ((Pattern.t * t) list)

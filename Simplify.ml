@@ -24,8 +24,11 @@ module Expr = struct
         | Let of Common.Arg.t * t * t
         | If of t * t * t
         | AllocTuple of Common.Tag.t * (Common.VarType.t * Common.Var.t) list
+        | ConstantConstructor of Common.Tag.t
         | GetField of int * (Common.VarType.t * Common.Var.t)
-        | Case of (Common.VarType.t * Common.Var.t) * ((Common.Tag.t * t) list)
+        | IsConstantConstructor of t
+        | ConstantConstructorCase of (Common.VarType.t * Common.Var.t) * ((Common.Tag.t * t) list)
+        | TupleConstructorCase of (Common.VarType.t * Common.Var.t) * ((Common.Tag.t * t) list)
         | Label of t * Common.Var.t * Common.VarType.t Common.Var.Map.t * t
         | Goto of Common.Var.t
                     * ((Common.VarType.t * Common.Var.t) Common.Var.Map.t)
@@ -58,97 +61,106 @@ module Expr = struct
     let rec convert expr =
         let info = expr.LambdaLift.Expr.info in
         let typ = expr.LambdaLift.Expr.typ in
-        let body =
-            match expr.LambdaLift.Expr.body with
-            | LambdaLift.Expr.Let(arg, x, y) ->
-                Let(arg, (convert x), (convert y))
-            | LambdaLift.Expr.If(x, y, z) ->
-                If((convert x), (convert y), (convert z))
-            | LambdaLift.Expr.AllocTuple(tag, xs) ->
-                let rec loop acc = function
-                    | [] -> { info; typ; body = AllocTuple(tag, List.rev acc) }
-                    | x :: xs -> lift_var (convert x)
-                                            (fun _ t v ->
-                                                loop ((t, v) :: acc) xs)
+        match expr.LambdaLift.Expr.body with
+        | LambdaLift.Expr.Let(arg, x, y) ->
+            { info; typ; body = Let(arg, (convert x), (convert y)) }
+        | LambdaLift.Expr.If(x, y, z) ->
+            { info; typ; body = If((convert x), (convert y), (convert z)) }
+        | LambdaLift.Expr.AllocTuple(tag, xs) ->
+            let rec loop acc = function
+                | [] -> { info; typ; body = AllocTuple(tag, List.rev acc) }
+                | x :: xs -> lift_var (convert x)
+                                        (fun _ t v ->
+                                            loop ((t, v) :: acc) xs)
+            in
+            (loop [] xs)
+        | LambdaLift.Expr.ConstantConstructor(tag) ->
+            { info; typ; body = ConstantConstructor(tag) }
+        | LambdaLift.Expr.GetField(num, x) ->
+            lift_var (convert x)
+                (fun i t v ->
+                    { info; typ;
+                        body = GetField(num, (t, v)) })
+        | LambdaLift.Expr.IsConstantConstructor(x) ->
+            { info; typ; body = IsConstantConstructor(convert x) }
+        | LambdaLift.Expr.ConstantConstructorCase(n, opts) ->
+            let opts = List.map (fun (tag, x) -> tag, convert x) opts in
+            lift_var (convert n)
+                (fun i t v ->
+                    { info = i; typ;
+                        body = ConstantConstructorCase((t, v), opts) })
+        | LambdaLift.Expr.TupleConstructorCase(n, opts) ->
+            let opts = List.map (fun (tag, x) -> tag, convert x) opts in
+            lift_var (convert n)
+                (fun i t v ->
+                    { info = i; typ;
+                        body = TupleConstructorCase((t, v), opts) })
+        | LambdaLift.Expr.Label(x, label, bindings, y) ->
+            { info; typ;
+                body = Label((convert x), label, bindings, (convert y)) }
+        | LambdaLift.Expr.Goto(label, bindings) ->
+            let rec loop bindings = function
+                | [] -> { info; typ; body = Goto(label, bindings) }
+                | (k, x) :: xs
+                    -> lift_var
+                            (convert x)
+                            (fun i t v ->
+                                loop
+                                    (Common.Var.Map.add k
+                                        (t, v)
+                                        bindings)
+                                    xs)
+            in
+            loop Common.Var.Map.empty
+                                (Common.Var.Map.bindings bindings)
+        | LambdaLift.Expr.BinOp(x, op, y) ->
+            { info; typ; body = BinOp((convert x), op, (convert y)) }
+        | LambdaLift.Expr.UnOp(op, x) ->
+            { info; typ; body = UnOp(op, (convert x)) }
+        | LambdaLift.Expr.Apply(f, x) ->
+            let rec collapse xs expr =
+                match expr.LambdaLift.Expr.body with
+                | LambdaLift.Expr.Apply(g, y) ->
+                    collapse (y :: xs) g
+                | _ -> expr, xs
+            in
+            let f, xs = collapse [ x ] f in
+            let rec loop2 short f xs =
+                let n = if short then
+                            Config.max_args - 1
+                        else
+                            Config.max_args
                 in
-                (loop [] xs).body
-            | LambdaLift.Expr.GetField(num, x) ->
-                (lift_var (convert x)
-                    (fun i t v ->
-                        { info; typ;
-                            body = GetField(num, (t, v)) })).body
-            | LambdaLift.Expr.Case(n, opts) ->
-                let opts = List.map (fun (tag, x) -> tag, convert x) opts in
-                Case(n, opts)
-            | LambdaLift.Expr.Label(x, label, bindings, y) ->
-                Label((convert x), label, bindings, (convert y))
-            | LambdaLift.Expr.Goto(label, bindings) ->
-                let rec loop bindings = function
-                    | [] -> { info; typ; body = Goto(label, bindings) }
-                    | (k, x) :: xs
-                        -> lift_var
-                                (convert x)
-                                (fun i t v ->
-                                    loop
-                                        (Common.Var.Map.add k
-                                            (t, v)
-                                            bindings)
-                                        xs)
-                in
-                let r = loop Common.Var.Map.empty
-                                    (Common.Var.Map.bindings bindings)
-                in
-                r.body
-            | LambdaLift.Expr.BinOp(x, op, y) ->
-                BinOp((convert x), op, (convert y))
-            | LambdaLift.Expr.UnOp(op, x) ->
-                UnOp(op, (convert x))
-            | LambdaLift.Expr.Apply(f, x) ->
-                let rec collapse xs expr =
-                    match expr.LambdaLift.Expr.body with
-                    | LambdaLift.Expr.Apply(g, y) ->
-                        collapse (y :: xs) g
-                    | _ -> expr, xs
-                in
-                let f, xs = collapse [ x ] f in
-                let rec loop2 short f xs =
-                    let n = if short then
-                                Config.max_args - 1
-                            else
-                                Config.max_args
-                    in
-                    if ((List.length xs) > n) then
-                        let ys, zs = Utils.take_drop n xs in
-                        let z = Utils.last ys in
-                        let t = (fst z) in
-                        lift_var { info; typ = t; body = Apply(f, ys) }
-                            (fun i t h -> loop2 true (t,h) zs)
-                    else
-                        let z = Utils.last xs in
-                        let t = (fst z) in
-                        { info; typ = t; body = Apply(f, xs) }
-                in
-    
-                let rec loop1 xs = function
-                    | [] ->
-                        let xs = List.rev xs in
-                        lift_var (convert f)
-                            (fun i t g -> loop2 false 
-                                (t, g)
-                                xs)
-                    | y :: ys ->
-                        lift_var (convert y)
-                            (fun i t y -> loop1 ((t, y) :: xs) ys)
-                in
-                (loop1 [] xs).body
-            | LambdaLift.Expr.Var(v) ->
-                Var(v)
-            | LambdaLift.Expr.Const(c) ->
-                Const(c)
-            | LambdaLift.Expr.CallExtern(xtern, xs) ->
-                CallExtern(xtern, xs)
-        in
-        { info; typ; body }
+                if ((List.length xs) > n) then
+                    let ys, zs = Utils.take_drop n xs in
+                    let z = Utils.last ys in
+                    let t = (fst z) in
+                    lift_var { info; typ = t; body = Apply(f, ys) }
+                        (fun i t h -> loop2 true (t,h) zs)
+                else
+                    let z = Utils.last xs in
+                    let t = (fst z) in
+                    { info; typ = t; body = Apply(f, xs) }
+            in
+
+            let rec loop1 xs = function
+                | [] ->
+                    let xs = List.rev xs in
+                    lift_var (convert f)
+                        (fun i t g -> loop2 false 
+                            (t, g)
+                            xs)
+                | y :: ys ->
+                    lift_var (convert y)
+                        (fun i t y -> loop1 ((t, y) :: xs) ys)
+            in
+            (loop1 [] xs)
+        | LambdaLift.Expr.Var(v) ->
+            { info; typ; body = Var(v) }
+        | LambdaLift.Expr.Const(c) ->
+            { info; typ; body = Const(c) }
+        | LambdaLift.Expr.CallExtern(xtern, xs) ->
+            { info; typ; body = CallExtern(xtern, xs) }
     ;;
 
 end;;

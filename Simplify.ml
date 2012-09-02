@@ -147,7 +147,7 @@ module Expr = struct
                 | [] ->
                     let xs = List.rev xs in
                     lift_var (convert f)
-                        (fun i t g -> loop2 false 
+                        (fun i t g -> loop2 false
                             (t, g)
                             xs)
                 | y :: ys ->

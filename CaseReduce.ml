@@ -157,7 +157,7 @@ end = struct
         | MatchReduce.Expr.Var(v) -> Common.Var.Set.add v s
         | MatchReduce.Expr.Const(_) -> s
     ;;
- 
+
 
     let rec replace_var name replacement expr =
         match expr.body with
@@ -239,7 +239,7 @@ end = struct
                 | Some name ->
                     if (Common.Var.Set.mem name live_vars) then
                         { expr with body =
-                            Let((ty, n), 
+                            Let((ty, n),
                                 { src with typ = ty; body =
                                     GetField(i, src) },
                                 expr) }
@@ -262,7 +262,7 @@ end = struct
             in
             { y with body = Let((x.typ, Some name), x, y) }
     ;;
-            
+
     let rec do_convert tagmap live_vars expr =
         let info = expr.MatchReduce.Expr.info in
         let typ = expr.MatchReduce.Expr.typ in
@@ -410,7 +410,7 @@ end = struct
         | None, None -> assert false
         | Some a, None
         | None, Some a -> a
-        | Some a, Some b -> 
+        | Some a, Some b ->
             { info; typ; body = If(
                 { info; typ =Type.Base(Type.Boolean);
                     body = IsConstantConstructor(x) },
@@ -462,7 +462,7 @@ let convert tagmap x =
                             List.map (fun _ -> Common.Var.generate ()) tys
                         in
                         let args = List.map2
-                            (fun name ty -> 
+                            (fun name ty ->
                                 { Expr.info = info; Expr.typ = ty;
                                     Expr.body = Expr.Var(name) })
                                 names

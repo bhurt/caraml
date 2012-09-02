@@ -48,9 +48,12 @@ end = struct
             loop bound s z
         | Expr.AllocTuple(_, xs) ->
             List.fold_left (loop bound) s xs
+        | Expr.ConstantConstructor(_) -> s
         | Expr.GetField(_, x) -> loop bound s x
-        | Expr.Case(n, opts) ->
-            let s = add_var bound s n in
+        | Expr.IsConstantConstructor(x) -> loop bound s x
+        | Expr.ConstantConstructorCase(n, opts)
+        | Expr.TupleConstructorCase(n, opts) ->
+            let s = loop bound s n in
             List.fold_left (fun s x -> loop bound s (snd x)) s opts
         | Expr.Label(x, _, bindings, y) ->
             let s = loop bound s x in
@@ -133,11 +136,17 @@ end = struct
                         let xs = List.map (replace_vars repl) xs in
                         Expr.AllocTuple(tag, xs)
             
+                    | Expr.ConstantConstructor(tag) -> expr.Expr.body
+
                     | Expr.GetField(num, x) ->
                         let x = replace_vars repl x in
                         Expr.GetField(num, x)
             
-                    | Expr.Case(n, opts) ->
+                    | Expr.IsConstantConstructor(x) ->
+                        let x = replace_vars repl x in
+                        Expr.IsConstantConstructor(x)
+
+                    | Expr.ConstantConstructorCase(n, opts) ->
                         (* Note: because of the way we generate it, the
                          * variable we are switching on can never be free.
                          * This simplifies things here a lot.
@@ -147,7 +156,19 @@ end = struct
                                 (fun (tag, x) -> tag, replace_vars repl x)
                                 opts
                         in
-                        Expr.Case(n, opts)
+                        Expr.ConstantConstructorCase(n, opts)
+            
+                    | Expr.TupleConstructorCase(n, opts) ->
+                        (* Note: because of the way we generate it, the
+                         * variable we are switching on can never be free.
+                         * This simplifies things here a lot.
+                         *)
+                        let opts =
+                            List.map
+                                (fun (tag, x) -> tag, replace_vars repl x)
+                                opts
+                        in
+                        Expr.TupleConstructorCase(n, opts)
             
                     | Expr.Label(x, label, bindings, y) ->
                         (* Note: we don't even try replacing vars bound
@@ -344,15 +365,28 @@ let rec convert_expr publics expr =
             let xs = List.map (convert_expr publics) xs in
             Expr.AllocTuple(tag, xs)
     
+        | Expr.ConstantConstructor(tag) ->
+            Expr.ConstantConstructor(tag)
+
         | Expr.GetField(num, x) ->
             let x = convert_expr publics x in
             Expr.GetField(num, x)
     
-        | Expr.Case(n, opts) ->
+        | Expr.IsConstantConstructor(x) ->
+            let x = convert_expr publics x in
+            Expr.IsConstantConstructor(x)
+
+        | Expr.ConstantConstructorCase(n, opts) ->
             let opts =
                 List.map (fun (tag, x) -> tag, convert_expr publics x) opts
             in
-            Expr.Case(n, opts)
+            Expr.ConstantConstructorCase(n, opts)
+    
+        | Expr.TupleConstructorCase(n, opts) ->
+            let opts =
+                List.map (fun (tag, x) -> tag, convert_expr publics x) opts
+            in
+            Expr.TupleConstructorCase(n, opts)
     
         | Expr.Label(x, label, bindings, y) ->
             let x = convert_expr publics x in

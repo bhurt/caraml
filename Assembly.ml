@@ -103,7 +103,7 @@ module InnerExpr = struct
         | None, Some(_) ->  u
         | Some(t_r, t_b), Some(u_r, u_b) ->
             let end_block = LlvmIntf.new_block () in
-            let end_r = LlvmIntf.phi end_block 
+            let end_r = LlvmIntf.phi end_block
                             [ (t_r, t_b); (u_r, u_b) ]
             in
             let _ = LlvmIntf.br t_b end_block in
@@ -132,7 +132,7 @@ module InnerExpr = struct
             let names =
                 Common.Var.Map.fold
                     (fun v _ names ->
-                        let name = 
+                        let name =
                             LlvmIntf.phi target
                                 (List.map
                                     (fun (block, args) ->
@@ -153,7 +153,7 @@ module InnerExpr = struct
 
     let handle_goto gotos names start_block label bindings =
         let bindings =
-            Common.Var.Map.map 
+            Common.Var.Map.map
                 (fun (_, n) -> get_name start_block names n)
                 bindings
         in
@@ -166,7 +166,7 @@ module InnerExpr = struct
             Common.Var.Map.add label [ start_block, bindings ] gotos
     ;;
 
-    let rec assemble gotos names start_block expr = 
+    let rec assemble gotos names start_block expr =
         let info = expr.CallOpt.InnerExpr.info in
         let ty = expr.CallOpt.InnerExpr.typ in
         match expr.CallOpt.InnerExpr.body with
@@ -400,7 +400,7 @@ module InnerExpr = struct
                                 (Common.Tag.to_int tag)
                         in
                         let start_block = LlvmIntf.new_block () in
-                        let _ = LlvmIntf.add_case ~switch ~tag 
+                        let _ = LlvmIntf.add_case ~switch ~tag
                                     ~dest:start_block
                         in
                         let (t, gotos) =
@@ -558,7 +558,7 @@ module TailExpr = struct
                             (Common.Tag.to_int tag)
                     in
                     let start_block = LlvmIntf.new_block () in
-                    let _ = LlvmIntf.add_case ~switch ~tag 
+                    let _ = LlvmIntf.add_case ~switch ~tag
                                 ~dest:start_block
                     in
                     assemble gotos names start_block x)

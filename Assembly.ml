@@ -216,48 +216,42 @@ module InnerExpr = struct
                 let _ = write_tuple (Common.Tag.to_int tag) b names ptr xs in
                 Some(ptr, b), gotos
 
+        | CallOpt.InnerExpr.ConstantConstructor(tag) ->
+            let tag =
+                LlvmIntf.int_const ((2 * (Common.Tag.to_int tag)) + 1)
+            in
+            Some(tag, start_block), gotos
+
         | CallOpt.InnerExpr.GetField(num, (ty', v)) ->
             let res = get_name start_block names v in
             Some((LlvmUtils.get_member start_block res ty num), start_block),
             gotos
 
-        | CallOpt.InnerExpr.Case((ty', v), opts) ->
-            let default = LlvmIntf.new_block () in
-            let _ = LlvmIntf.unreachable default in
+        | CallOpt.InnerExpr.IsConstantConstructor(x) ->
+            begin
+                let (t, gotos) = assemble gotos names start_block x in
+                match t with
+                | None -> None, gotos
+                | Some(r, b) ->
+                    let r = LlvmIntf.bitcast b r LlvmIntf.int_type in
+                    let r = LlvmIntf.int_and b r (LlvmIntf.int_const 1) in
+                    let r = LlvmIntf.eq b r (LlvmIntf.int_const 1) in
+                    Some(r, b), gotos
+            end
+
+        | CallOpt.InnerExpr.ConstantConstructorCase((_, v), opts) ->
+            let x = get_name start_block names v in
+            let tag = LlvmIntf.bitcast start_block x LlvmIntf.int_type in
+            let tag =
+                LlvmIntf.int_lshr start_block tag (LlvmIntf.int_const 1)
+            in
+            assemble_case tag start_block gotos names opts
+
+        | CallOpt.InnerExpr.TupleConstructorCase((_, v), opts) ->
             let x = get_name start_block names v in
             let (tag, start_block) = LlvmUtils.get_tag start_block x in
-            let switch = LlvmIntf.switch start_block tag ~default
-                            (List.length opts)
-            in
-            let (res, gotos) =
-                List.fold_left
-                    (fun (acc, gotos) (tag, x) ->
-                        let tag =
-                            LlvmIntf.int_const (Common.Tag.to_int tag)
-                        in
-                        let start_block = LlvmIntf.new_block () in
-                        let _ = LlvmIntf.add_case ~switch ~tag 
-                                    ~dest:start_block
-                        in
-                        let (t, gotos) = assemble gotos names start_block x in
-                        match t with
-                        | None -> (acc, gotos)
-                        | Some(x) ->
-                            (x :: acc, gotos))
-                    ([], gotos)
-                    opts
-            in
-            if (res != []) then
-                let end_block = LlvmIntf.new_block () in
-                let end_r = LlvmIntf.phi end_block res in
-                let _ = List.iter
-                            (fun (_, b) ->
-                                let _ = LlvmIntf.br b end_block in
-                                ())
-                in
-                Some(end_r, end_block), gotos
-            else
-                None, gotos
+            assemble_case tag start_block gotos names opts
+
 
         | CallOpt.InnerExpr.Label(x, label, bindings, y) ->
             begin
@@ -370,6 +364,66 @@ module InnerExpr = struct
             let res = LlvmIntf.call start_block f xs in
             Some(res, start_block), gotos
 
+    and assemble_case tag start_block gotos names = function
+        | [ (tag1, y); (_, z) ] ->
+            (* Use a branch, instead of a case *)
+            let test = LlvmIntf.eq start_block tag
+                        (LlvmIntf.int_const (Common.Tag.to_int tag1))
+            in
+            let t1_start = LlvmIntf.new_block () in
+            let (t1_t, gotos) =
+                assemble gotos names t1_start y
+            in
+
+            let t2_start = LlvmIntf.new_block() in
+            let (t2_t, gotos) =
+                assemble gotos names t2_start z
+            in
+
+            let _ = LlvmIntf.cond_br start_block ~test ~on_true:t1_start
+                                    ~on_false:t2_start
+            in
+            (merge_blocks t1_t t2_t), gotos
+
+        | opts ->
+
+            let default = LlvmIntf.new_block () in
+            let _ = LlvmIntf.unreachable default in
+            let switch = LlvmIntf.switch start_block tag ~default
+                            (List.length opts)
+            in
+            let (res, gotos) =
+                List.fold_left
+                    (fun (acc, gotos) (tag, x) ->
+                        let tag =
+                            LlvmIntf.int_const
+                                (Common.Tag.to_int tag)
+                        in
+                        let start_block = LlvmIntf.new_block () in
+                        let _ = LlvmIntf.add_case ~switch ~tag 
+                                    ~dest:start_block
+                        in
+                        let (t, gotos) =
+                            assemble gotos names start_block x
+                        in
+                        match t with
+                        | None -> (acc, gotos)
+                        | Some(x) ->
+                            (x :: acc, gotos))
+                    ([], gotos)
+                    opts
+            in
+            if (res != []) then
+                let end_block = LlvmIntf.new_block () in
+                let end_r = LlvmIntf.phi end_block res in
+                let _ = List.iter
+                            (fun (_, b) ->
+                                let _ = LlvmIntf.br b end_block in
+                                ())
+                in
+                Some(end_r, end_block), gotos
+            else
+                None, gotos
     ;;
 
 end;;
@@ -418,23 +472,19 @@ module TailExpr = struct
                     gotos
             end
 
-        | CallOpt.TailExpr.Case((ty', v), opts) ->
-            let default = LlvmIntf.new_block () in
-            let _ = LlvmIntf.unreachable default in
-            let test = InnerExpr.get_name start_block names v in
-            let switch = LlvmIntf.switch start_block test ~default
-                            (List.length opts)
+        | CallOpt.TailExpr.ConstantConstructorCase((_, v), opts) ->
+            let x = InnerExpr.get_name start_block names v in
+            let tag = LlvmIntf.bitcast start_block x LlvmIntf.int_type in
+            let tag =
+                LlvmIntf.int_lshr start_block tag (LlvmIntf.int_const 1)
             in
-            List.fold_left
-                (fun gotos (tag, x) ->
-                    let tag = LlvmIntf.int_const (Common.Tag.to_int tag) in
-                    let start_block = LlvmIntf.new_block () in
-                    let _ = LlvmIntf.add_case ~switch ~tag 
-                                ~dest:start_block
-                    in
-                    assemble gotos names start_block x)
-                gotos
-                opts
+            assemble_case tag start_block gotos names opts
+
+        | CallOpt.TailExpr.TupleConstructorCase((_, v), opts) ->
+            let x = InnerExpr.get_name start_block names v in
+            let (tag, start_block) = LlvmUtils.get_tag start_block x in
+            assemble_case tag start_block gotos names opts
+
 
         | CallOpt.TailExpr.Label(x, label, bindings, y) ->
             begin
@@ -476,6 +526,44 @@ module TailExpr = struct
             let _ = LlvmIntf.set_tail_call res in
             let _ = LlvmIntf.ret start_block res in
             gotos
+
+    and assemble_case tag start_block gotos names = function
+        | [ (tag1, y); (_, z) ] ->
+            (* Use a branch, instead of a case *)
+            let test = LlvmIntf.eq start_block tag
+                        (LlvmIntf.int_const (Common.Tag.to_int tag1))
+            in
+            let t1_start = LlvmIntf.new_block () in
+            let gotos = assemble gotos names t1_start y in
+
+            let t2_start = LlvmIntf.new_block() in
+            let gotos = assemble gotos names t2_start z in
+
+            let _ = LlvmIntf.cond_br start_block ~test ~on_true:t1_start
+                                    ~on_false:t2_start
+            in
+            gotos
+
+        | opts ->
+
+            let default = LlvmIntf.new_block () in
+            let _ = LlvmIntf.unreachable default in
+            let switch = LlvmIntf.switch start_block tag ~default
+                            (List.length opts)
+            in
+            List.fold_left
+                (fun gotos (tag, x) ->
+                    let tag =
+                        LlvmIntf.int_const
+                            (Common.Tag.to_int tag)
+                    in
+                    let start_block = LlvmIntf.new_block () in
+                    let _ = LlvmIntf.add_case ~switch ~tag 
+                                ~dest:start_block
+                    in
+                    assemble gotos names start_block x)
+                gotos
+                opts
     ;;
 
 end;;

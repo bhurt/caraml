@@ -66,7 +66,7 @@ let blank = [ ' ' '\009' '\010' '\012' '\013' ]
 let lowercase = [ 'a'-'z' '_' ]
 let uppercase = [ 'A'-'Z' ]
 let digit = [ '0'-'9' ]
-let prime = '\''
+let prime = '\'' 
 let identchar = (lowercase | uppercase | digit | prime)
 
 rule token = parse
@@ -79,7 +79,7 @@ rule token = parse
         }
     | [ '+' '-' ]? digit+ {
             Parser.INT_VAL (int_of_string (Lexing.lexeme lexbuf))
-        }
+        } 
 
     | lowercase identchar* { keyword lexbuf }
     | uppercase identchar* { Parser.CVAR(Lexing.lexeme lexbuf) }

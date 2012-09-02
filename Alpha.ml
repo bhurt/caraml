@@ -75,7 +75,7 @@ end = struct
     } with sexp;;
 
 
-    let convert names fns =
+    let convert names fns = 
         let names =
             List.fold_left
                 (fun names fn ->
@@ -167,7 +167,7 @@ end = struct
                     let curr_names, xs = Utils.map_accum loop curr_names xs in
                     let v = StringMap.find var new_names in
                     curr_names, Constructor(v, xs)
-                | Annot.Pattern.Or(x, y) ->
+                | Annot.Pattern.Or(x, y) -> 
                     let _, x = loop curr_names x in
                     let curr_names, y = loop curr_names y in
                     curr_names, Or(x, y)
@@ -243,7 +243,7 @@ end = struct
         body: s;
     } with sexp;;
 
-    let rec convert names x =
+    let rec convert names x = 
         let body = match x.Annot.Expr.body with
 
             | Annot.Expr.Lambda(args, x) ->
@@ -251,25 +251,25 @@ end = struct
                 let args = List.map (map_arg names) args in
                 let x = convert names x in
                 Lambda(args, x)
-
+    
             | Annot.Expr.Let(arg, x, y) ->
                 let x = convert names x in
                 let names = rename_arg names arg in
                 let arg = map_arg names arg in
                 let y = convert names y in
                 Let(arg, x, y)
-
+    
             | Annot.Expr.LetRec(fns, x) ->
                 let names, fns = Lambda.convert names fns in
                 let x = convert names x in
                 LetRec(fns, x)
-
+    
             | Annot.Expr.If(x, y, z) ->
                 let x = convert names x in
                 let y = convert names y in
                 let z = convert names z in
                 If(x, y, z)
-
+    
             | Annot.Expr.Match(x, bindings) ->
                 let x = convert names x in
                 let bindings =
@@ -281,28 +281,28 @@ end = struct
                         bindings
                 in
                 Match(x, bindings)
-
+    
             | Annot.Expr.Tuple(xs) ->
                 let xs = List.map (convert names) xs in
                 Tuple(xs)
-
+    
             | Annot.Expr.BinOp(x, op, y) ->
                 let x = convert names x in
                 let y = convert names y in
                 BinOp(x, op, y)
-
+    
             | Annot.Expr.UnOp(op, x) ->
                 let x = convert names x in
                 UnOp(op, x)
-
+    
             | Annot.Expr.Apply(f, x) ->
                 let f = convert names f in
                 let x = convert names x in
                 Apply(f, x)
-
+    
             | Annot.Expr.Var(v) ->
                 Var(StringMap.find v names)
-
+    
             | Annot.Expr.Const(c) ->
                 Const(c)
     in
@@ -310,9 +310,9 @@ end = struct
         info = x.Annot.Expr.info;
         typ = convert_type names x.Annot.Expr.typ;
         body = body;
-    }
+    } 
     ;;
-
+        
 end;;
 
 type s =
@@ -326,7 +326,7 @@ and t = {
     body: s;
 } with sexp;;
 
-let convert names defn =
+let convert names defn = 
     let names, body = match defn.Annot.body with
         | Annot.Top(ty, None, x) ->
             let ty = convert_type names ty in

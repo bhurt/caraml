@@ -61,7 +61,7 @@ module Var = struct
     module Map = struct
         include XMap;;
 
-        let t_of_sexp f sexp =
+        let t_of_sexp f sexp = 
             let pairs =
                 Sexplib.Conv.list_of_sexp
                     (Sexplib.Conv.pair_of_sexp t_of_sexp f) sexp

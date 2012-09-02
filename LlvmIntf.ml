@@ -341,7 +341,7 @@ let struct_gep b ptr idx =
     let name = alloc_reg_name () in
     Llvm.build_struct_gep ptr idx name b.builder
 ;;
-
+    
 
 let call b f xs =
     let name = alloc_reg_name () in
@@ -361,7 +361,7 @@ let bool_to_int b x =
     let name = alloc_reg_name () in
     Llvm.build_zext x int_type name b.builder
 ;;
-
+    
 let box_unit _ x = x;;
 
 let box_bool b x = bool_to_int b x;;

@@ -57,7 +57,7 @@ let make_apply_fn nparams nvals nargs =
     let _ = LlvmIntf.with_function fn_name fn_type in
     let ps = LlvmIntf.params () in
     let ptr = List.hd ps in
-    let vals =
+    let vals = 
         List.append
             (Utils.unfoldi
                 (fun i b -> (LlvmUtils.load b ptr (i + 2)), b)
@@ -66,7 +66,7 @@ let make_apply_fn nparams nvals nargs =
     in
 
     let block = LlvmIntf.entry_block () in
-    let (r, block) =
+    let (r, block) = 
 
         if (nparams < (nvals + nargs)) then
 
@@ -97,7 +97,7 @@ let make_apply_fn nparams nvals nargs =
             (* We can't call the function at all, just allocate a new
              * closure.
              *)
-
+        
             let (r, block) = LlvmUtils.alloc_closure block nparams
                 ~tag_word:(fun b ->
                     let t_word = LlvmUtils.load b ptr (-1) in

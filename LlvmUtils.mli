@@ -28,7 +28,7 @@ val set_member : LlvmIntf.block_t -> ptr:Llvm.llvalue -> 'a Type.t -> int
 val make_tag_word : tag:int -> len:int -> 'a Type.t list -> int64;;
 val set_tag_word_length : LlvmIntf.block_t -> len:int -> Llvm.llvalue
                                 -> Llvm.llvalue;;
-val heap_alloc : LlvmIntf.block_t -> int -> (Llvm.llvalue * LlvmIntf.block_t);;
+val heap_alloc : LlvmIntf.block_t -> int -> (Llvm.llvalue * LlvmIntf.block_t);; 
 
 type get_val_t = LlvmIntf.block_t -> (Llvm.llvalue * LlvmIntf.block_t);;
 

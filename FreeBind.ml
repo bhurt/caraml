@@ -115,33 +115,33 @@ end = struct
                         let x = replace_vars repl x in
                         let y = replace_vars repl y in
                         Expr.Let(arg, x, y)
-
+            
                     | Expr.LetFn(fn, x) ->
                         let x = replace_vars repl x in
                         let fn = replace_vars_lambda repl fn in
                         Expr.LetFn(fn, x)
-
+            
                     | Expr.LetRec(fns, x) ->
                         let x = replace_vars repl x in
                         let fns = List.map (replace_vars_lambda repl) fns in
                         Expr.LetRec(fns, x)
-
+            
                     | Expr.If(x, y, z) ->
                         let x = replace_vars repl x in
                         let y = replace_vars repl y in
                         let z = replace_vars repl z in
                         Expr.If(x, y, z)
-
+            
                     | Expr.AllocTuple(tag, xs) ->
                         let xs = List.map (replace_vars repl) xs in
                         Expr.AllocTuple(tag, xs)
-
+            
                     | Expr.ConstantConstructor(tag) -> expr.Expr.body
 
                     | Expr.GetField(num, x) ->
                         let x = replace_vars repl x in
                         Expr.GetField(num, x)
-
+            
                     | Expr.IsConstantConstructor(x) ->
                         let x = replace_vars repl x in
                         Expr.IsConstantConstructor(x)
@@ -157,7 +157,7 @@ end = struct
                                 opts
                         in
                         Expr.ConstantConstructorCase(n, opts)
-
+            
                     | Expr.TupleConstructorCase(n, opts) ->
                         (* Note: because of the way we generate it, the
                          * variable we are switching on can never be free.
@@ -169,7 +169,7 @@ end = struct
                                 opts
                         in
                         Expr.TupleConstructorCase(n, opts)
-
+            
                     | Expr.Label(x, label, bindings, y) ->
                         (* Note: we don't even try replacing vars bound
                          * in a label.
@@ -177,27 +177,27 @@ end = struct
                         let x = replace_vars repl x in
                         let y = replace_vars repl y in
                         Expr.Label(x, label, bindings, y)
-
+            
                     | Expr.Goto(label, bindings) ->
                         let bindings =
                             Common.Var.Map.map (replace_vars repl) bindings
                         in
                         Expr.Goto(label, bindings)
-
+                    
                     | Expr.BinOp(x, op, y) ->
                         let x = replace_vars repl x in
                         let y = replace_vars repl y in
                         Expr.BinOp(x, op, y)
-
+            
                     | Expr.UnOp(op, x) ->
                         let x = replace_vars repl x in
                         Expr.UnOp(op, x)
-
+            
                     | Expr.Apply(x, y) ->
                         let x = replace_vars repl x in
                         let y = replace_vars repl y in
                         Expr.Apply(x, y)
-
+            
                     | Expr.Var(v) as x ->
                         begin
                             try
@@ -266,7 +266,7 @@ let preapply_vars rec_fns var_names var_types x =
                                 var_names
                         in
                         let fty = Type.fn_type var_types ty in
-                        let res = List.fold_left (make_apply info)
+                        let res = List.fold_left (make_apply info) 
                                     (Expr.make info fty (Expr.Var(n)))
                                     vars
                         in
@@ -330,7 +330,7 @@ let rec convert_expr publics expr =
             let x = convert_expr publics x in
             let y = convert_expr publics y in
             Expr.Let(arg, x, y)
-
+    
         | Expr.LetFn(fn, x) ->
             let fvmap = FreeVars.free_vars_lambdas publics [ fn ] in
             let nvs = Common.Var.Map.cardinal fvmap in
@@ -348,30 +348,30 @@ let rec convert_expr publics expr =
             let publics = Common.Var.Set.add name publics in
             let x = convert_expr publics x in
             Expr.LetFn(fn, x)
-
+    
         | Expr.LetRec(fns, x) ->
             let publics, fns, g = convert_lambdas publics fns in
             let x = g x in
             let x = convert_expr publics x in
             Expr.LetRec(fns, x)
-
+    
         | Expr.If(x, y, z) ->
             let x = convert_expr publics x in
             let y = convert_expr publics y in
             let z = convert_expr publics z in
             Expr.If(x, y, z)
-
+    
         | Expr.AllocTuple(tag, xs) ->
             let xs = List.map (convert_expr publics) xs in
             Expr.AllocTuple(tag, xs)
-
+    
         | Expr.ConstantConstructor(tag) ->
             Expr.ConstantConstructor(tag)
 
         | Expr.GetField(num, x) ->
             let x = convert_expr publics x in
             Expr.GetField(num, x)
-
+    
         | Expr.IsConstantConstructor(x) ->
             let x = convert_expr publics x in
             Expr.IsConstantConstructor(x)
@@ -381,41 +381,41 @@ let rec convert_expr publics expr =
                 List.map (fun (tag, x) -> tag, convert_expr publics x) opts
             in
             Expr.ConstantConstructorCase(n, opts)
-
+    
         | Expr.TupleConstructorCase(n, opts) ->
             let opts =
                 List.map (fun (tag, x) -> tag, convert_expr publics x) opts
             in
             Expr.TupleConstructorCase(n, opts)
-
+    
         | Expr.Label(x, label, bindings, y) ->
             let x = convert_expr publics x in
             let y = convert_expr publics y in
             Expr.Label(x, label, bindings, y)
-
+    
         | Expr.Goto(label, bindings) ->
             let bindings = Common.Var.Map.map (convert_expr publics) bindings in
             Expr.Goto(label, bindings)
-
+    
         | Expr.BinOp(x, op, y) ->
             let x = convert_expr publics x in
             let y = convert_expr publics y in
             Expr.BinOp(x, op, y)
-
+    
         | Expr.UnOp(op, x) ->
             let x = convert_expr publics x in
             Expr.UnOp(op, x)
-
+    
         | Expr.Apply(x, y) ->
             let x = convert_expr publics x in
             let y = convert_expr publics y in
             Expr.Apply(x, y)
-
+    
         | Expr.Var(_) as x -> x
         | Expr.Const(_) as x -> x
     in
     Expr.make info ty body
-
+    
 and convert_lambdas publics fns =
     let publics =
         List.fold_left

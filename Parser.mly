@@ -155,7 +155,7 @@ arg:
 ;
 
 type_expr:
-      tuple_type_expr ARROW type_expr {
+      tuple_type_expr ARROW type_expr { 
             Type.Arrow($1, $3)
         }
     | tuple_type_expr {
@@ -219,7 +219,7 @@ pattern:
 ;
 
 as_pattern:
-      as_pattern AS VAR {
+      as_pattern AS VAR { 
             {   AST.Pattern.info = info ();
                 AST.Pattern.body = AST.Pattern.As($1, $3) }
         }

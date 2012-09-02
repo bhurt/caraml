@@ -578,7 +578,7 @@ end = struct
         let fn_args = List.map (fun (n, ty) -> ty, Some n) fn_args in
         let wrapper =
             (fun y z ->
-                Let((f_type, Some fn_name),
+                Let((f_type, Some fn_name), 
                     { y with typ = f_type;
                         body = Lambda(fn_args, expr) },
                     { y with body = z }))
@@ -641,7 +641,7 @@ end = struct
         let y = convert constructors y in
         let wrapper, f, xs = make_wrapper y (bound_vars p) in
         let wrappers, p = create_pattern (wrapper :: wrappers) constructors
-                                x_typ x_name (P.Apply(f, xs)) p
+                                x_typ x_name (P.Apply(f, xs)) p 
         in
         wrappers, P.or_patterns p pat
     and create_pattern wrappers constructors x_typ x_name base_pattern p =

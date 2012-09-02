@@ -18,7 +18,7 @@
 
 open Sexplib.Conv;;
 
-let rec flatten_lambdas args body =
+let rec flatten_lambdas args body = 
     match body.CaseReduce.Expr.body with
     | CaseReduce.Expr.Lambda(args2, y) ->
         flatten_lambdas (List.append args args2) y
@@ -163,7 +163,7 @@ end = struct
                 let x = convert x in
                 let y = convert y in
                 Let(n, x, y)
-
+                
             | CaseReduce.Expr.LetRec(fns, x) ->
                 let fns = List.map Lambda.convert fns in
                 let x = convert x in
@@ -234,7 +234,7 @@ and t = {
     body: s;
 } with sexp;;
 
-let convert top =
+let convert top = 
     let info = top.CaseReduce.info in
     let body = match top.CaseReduce.body with
         | CaseReduce.Top(ty, name, x) ->

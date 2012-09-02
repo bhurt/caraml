@@ -24,8 +24,11 @@ module Expr = struct
         | Let of Common.Arg.t * t * t
         | If of t * t * t
         | AllocTuple of Common.Tag.t * (t list)
+        | ConstantConstructor of Common.Tag.t
         | GetField of int * t
-        | Case of (Common.VarType.t * Common.Var.t) * ((Common.Tag.t * t) list)
+        | IsConstantConstructor of t
+        | ConstantConstructorCase of t * ((Common.Tag.t * t) list)
+        | TupleConstructorCase of t * ((Common.Tag.t * t) list)
         | Label of t * Common.Var.t * Common.VarType.t Common.Var.Map.t * t
         | Goto of Common.Var.t * (t Common.Var.Map.t)
         | BinOp of t * Common.BinOp.t * t
@@ -100,11 +103,18 @@ let rec convert_expr acc expr =
             let xs = List.rev xs in
             acc, Expr.AllocTuple(tag, xs)
 
+        | LambdaConv.Expr.ConstantConstructor(tag) ->
+            acc, Expr.ConstantConstructor(tag)
+
         | LambdaConv.Expr.GetField(num, x) ->
             let acc, x = convert_expr acc x in
             acc, Expr.GetField(num, x)
 
-        | LambdaConv.Expr.Case(n, opts) ->
+        | LambdaConv.Expr.IsConstantConstructor(x) ->
+            let acc, x = convert_expr acc x in
+            acc, Expr.IsConstantConstructor(x)
+
+        | LambdaConv.Expr.ConstantConstructorCase(n, opts) ->
             let acc, opts =
                 Utils.map_accum
                     (fun acc (tag, x) ->
@@ -113,7 +123,20 @@ let rec convert_expr acc expr =
                     acc
                     opts
             in
-            acc, Expr.Case(n, opts)
+            let acc, n = convert_expr acc n in
+            acc, Expr.ConstantConstructorCase(n, opts)
+
+        | LambdaConv.Expr.TupleConstructorCase(n, opts) ->
+            let acc, opts =
+                Utils.map_accum
+                    (fun acc (tag, x) ->
+                        let acc, x = convert_expr acc x in
+                        acc, (tag, x))
+                    acc
+                    opts
+            in
+            let acc, n = convert_expr acc n in
+            acc, Expr.TupleConstructorCase(n, opts)
 
         | LambdaConv.Expr.Label(x, label, bindings, y) ->
             let acc, x = convert_expr acc x in
